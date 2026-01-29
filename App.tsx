@@ -5,7 +5,6 @@ import {
   User, 
   School, 
   Calendar, 
-  Printer, 
   Settings as SettingsIcon, 
   FileText, 
   CheckCircle,
@@ -67,7 +66,7 @@ const ModernField = ({ label, icon: Icon, value, onChange, type = "text" }: { la
   </div>
 );
 
-// --- Real-time Clock Component ---
+// --- Real-time Clock Component (24-hour format) ---
 const LiveDigitalClock = () => {
   const [time, setTime] = useState(new Date());
 
@@ -80,7 +79,7 @@ const LiveDigitalClock = () => {
     <div className="flex flex-col items-center justify-center bg-blue-600/10 border border-blue-500/20 rounded-2xl px-5 py-2 min-w-[140px]">
       <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-0.5">الوقت الآن</span>
       <span className="text-xl font-bold text-white tabular-nums tracking-wider">
-        {time.toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+        {time.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
       </span>
     </div>
   );
@@ -122,10 +121,11 @@ export default function App() {
     localStorage.setItem('teacher_info', JSON.stringify(teacherInfo));
   }, [teacherInfo]);
 
+  // Format time as "START - END" (24h)
   const formatDisplayTime = (timeRange: string) => {
     const parts = timeRange.split('/');
     if (parts.length === 2) {
-      return `من الساعة ${parts[0]} إلى الساعة ${parts[1]}`;
+      return `${parts[0]} - ${parts[1]}`;
     }
     return timeRange;
   };
@@ -155,10 +155,6 @@ export default function App() {
     });
   }, [targetDate, semesterStart]);
 
-  const handlePrint = () => {
-    window.print();
-  };
-
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0f172a]">
@@ -177,9 +173,9 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row overflow-hidden no-print">
+    <div className="min-h-screen flex flex-col md:flex-row overflow-hidden">
       
-      {/* --- Lesson Detail Modal (Optimized for speed) --- */}
+      {/* --- Lesson Detail Modal --- */}
       <AnimatePresence>
         {selectedRow && (
           <motion.div 
@@ -296,18 +292,7 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="hidden sm:block">
-               <LiveDigitalClock />
-            </div>
-            
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={handlePrint}
-              className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 transition-colors"
-            >
-              <Printer size={18} />
-              <span className="text-sm">طباعة</span>
-            </motion.button>
+            <LiveDigitalClock />
           </div>
         </header>
 
@@ -364,7 +349,7 @@ export default function App() {
                       className="glass-effect p-5 rounded-[2rem] flex flex-col md:flex-row items-center gap-5 border-white/5 group cursor-pointer relative"
                     >
                       <div className="flex items-center gap-4 min-w-[240px] w-full md:w-auto">
-                        <div className="w-14 h-14 rounded-2xl bg-blue-600/10 flex items-center justify-center text-blue-400 font-bold text-[10px] text-center p-2 leading-tight border border-blue-500/10">
+                        <div className="w-20 h-14 rounded-2xl bg-blue-600/10 flex items-center justify-center text-blue-400 font-bold text-[11px] text-center p-2 leading-tight border border-blue-500/10">
                           {formatDisplayTime(row.time)}
                         </div>
                         <div className="flex flex-col">
@@ -415,59 +400,12 @@ export default function App() {
           <LayoutDashboard size={20} />
           <span className="text-[10px] font-bold">الجدول</span>
         </button>
-        <div className="w-12 h-10 flex items-center justify-center">
-          <LiveDigitalClock />
-        </div>
         <button onClick={() => setActiveView('settings')} className={`flex flex-col items-center gap-1 ${activeView === 'settings' ? 'text-blue-400' : 'text-slate-500'}`}>
           <SettingsIcon size={20} />
           <span className="text-[10px] font-bold">الإعدادات</span>
         </button>
       </nav>
 
-      {/* --- Print Area (Unchanged for Official Look) --- */}
-      <div className="hidden print:block print-area w-full max-w-[210mm] mx-auto bg-white text-black p-[15mm]">
-        <div className="flex justify-between items-start mb-10 border-b-2 border-slate-900 pb-6">
-          <div className="text-right space-y-1">
-            <p className="font-bold text-lg">المؤسسة: {teacherInfo.school}</p>
-            <p>الأستاذ: {teacherInfo.name}</p>
-            <p>السنة الدراسية: 2024 / 2025</p>
-          </div>
-          <div className="text-center">
-            <h2 className="text-3xl font-bold border-4 border-double border-slate-900 px-8 py-2 inline-block">
-              الدفتر اليومي
-            </h2>
-          </div>
-          <div className="w-[150px]"></div>
-        </div>
-        <table className="w-full border-collapse border-2 border-slate-900 text-sm">
-          <thead>
-            <tr className="bg-slate-100">
-              <th className="border-2 border-slate-900 p-2 w-[12%]">اليوم والتاريخ</th>
-              <th className="border-2 border-slate-900 p-2 w-[10%]">التوقيت</th>
-              <th className="border-2 border-slate-900 p-2 w-[10%]">القسم</th>
-              <th className="border-2 border-slate-900 p-2 w-[15%]">الميدان</th>
-              <th className="border-2 border-slate-900 p-2 w-[25%]">التعلمات</th>
-              <th className="border-2 border-slate-900 p-2 w-[20%]">محتوى التعلم</th>
-              <th className="border-2 border-slate-900 p-2 w-[8%]">ملاحظات</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, idx) => (
-              <tr key={idx} className="h-28 align-top">
-                <td className="border-2 border-slate-900 p-2 text-center align-middle font-bold">
-                  {idx === 0 ? <>{row.day}<br/><span className="text-xs font-normal">{row.date}</span></> : ""}
-                </td>
-                <td className="border-2 border-slate-900 p-2 text-center align-middle font-bold italic">{formatDisplayTime(row.time)}</td>
-                <td className="border-2 border-slate-900 p-2 text-center align-middle font-bold text-lg">{row.gradeSection}</td>
-                <td className="border-2 border-slate-900 p-2 text-center align-middle leading-tight">{row.field}</td>
-                <td className="border-2 border-slate-900 p-2 leading-relaxed font-bold">{row.learnings}</td>
-                <td className="border-2 border-slate-900 p-2 leading-relaxed">{row.content}</td>
-                <td className="border-2 border-slate-900 p-2"></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }

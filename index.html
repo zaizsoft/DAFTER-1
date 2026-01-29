@@ -44,10 +44,6 @@
         border: 1px solid rgba(255, 255, 255, 0.08);
       }
 
-      .print-area {
-        font-family: 'Amiri', serif;
-      }
-
       /* Animations for Icons */
       @keyframes float {
         0% { transform: translateY(0px); }
@@ -56,17 +52,6 @@
       }
       .animate-float {
         animation: float 3s ease-in-out infinite;
-      }
-
-      @media print {
-        .no-print {
-          display: none !important;
-        }
-        body {
-          background: white !important;
-          color: black !important;
-        }
-        .mesh-bg { display: none; }
       }
       
       ::-webkit-scrollbar {
@@ -99,7 +84,6 @@
   <body>
     <div class="mesh-bg"></div>
     <div id="root"></div>
-    <!-- الربط الصريح لملف السكريبت لضمان العمل على الاستضافات الثابتة -->
     <script type="module" src="./index.tsx"></script>
   </body>
 </html>
