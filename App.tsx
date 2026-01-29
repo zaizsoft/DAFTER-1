@@ -93,7 +93,7 @@ export default function App() {
   const [targetDate, setTargetDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 1200);
+    const timer = setTimeout(() => setIsLoading(false), 800);
     return () => clearTimeout(timer);
   }, []);
 
@@ -105,11 +105,11 @@ export default function App() {
     localStorage.setItem('teacher_info', JSON.stringify(teacherInfo));
   }, [teacherInfo]);
 
-  // Helper to format time "XX:XX/YY:YY" to "من XX:XX إلى YY:YY"
+  // تحديث صيغة الوقت لتشمل كلمة "الساعة"
   const formatDisplayTime = (timeRange: string) => {
     const parts = timeRange.split('/');
     if (parts.length === 2) {
-      return `من ${parts[0]} إلى ${parts[1]}`;
+      return `من الساعة ${parts[0]} إلى الساعة ${parts[1]}`;
     }
     return timeRange;
   };
@@ -129,7 +129,7 @@ export default function App() {
       return {
         date: formatDate(dateObj),
         day: dayName,
-        time: slot.time, // We keep raw for printing/logic, but format for UI
+        time: slot.time,
         gradeSection: `${slot.grade} (${slot.section})`,
         field: FIELD_NAME,
         learnings: lesson.knowledgeResource,
@@ -155,15 +155,7 @@ export default function App() {
             <Sparkles size={40} className="text-white" />
           </div>
           <div className="flex flex-col items-center gap-2">
-            <h2 className="text-2xl font-bold text-white">الدفتر الذكي</h2>
-            <div className="w-48 h-1.5 bg-white/10 rounded-full overflow-hidden">
-              <motion.div 
-                initial={{ x: "-100%" }}
-                animate={{ x: "100%" }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-                className="w-full h-full bg-blue-500"
-              />
-            </div>
+            <h2 className="text-2xl font-bold text-white">جاري التحميل...</h2>
           </div>
         </motion.div>
       </div>
@@ -173,74 +165,62 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col md:flex-row overflow-hidden no-print">
       
-      {/* --- Lesson Detail Modal --- */}
+      {/* --- Lesson Detail Modal (Auto-closes on click) --- */}
       <AnimatePresence>
         {selectedRow && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={() => setSelectedRow(null)}
-            className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-xl flex items-center justify-center p-6"
+            onClick={() => setSelectedRow(null)} // إغلاق تلقائي عند النقر في أي مكان
+            className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-2xl flex items-center justify-center p-6 cursor-pointer"
           >
             <motion.div 
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              onClick={(e) => e.stopPropagation()} // Prevent click from closing when clicking inside
-              className="glass-effect rounded-[2.5rem] w-full max-w-lg overflow-hidden border border-white/20 shadow-2xl"
+              className="glass-effect rounded-[3rem] w-full max-w-2xl overflow-hidden border border-white/20 shadow-[0_0_100px_rgba(59,130,246,0.3)]"
             >
-              <div className="p-8 space-y-8">
-                <div className="flex justify-between items-start">
-                  <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-500/20">
-                    <BookOpen className="text-white" size={24} />
-                  </div>
-                  <button 
-                    onClick={() => setSelectedRow(null)}
-                    className="p-2 hover:bg-white/10 rounded-full transition-colors"
-                  >
-                    <X className="text-slate-400" size={24} />
-                  </button>
+              <div className="p-10 space-y-10 text-right">
+                <div className="flex justify-between items-center">
+                   <div className="bg-blue-600/20 p-4 rounded-3xl border border-blue-500/30">
+                     <BookOpen className="text-blue-400" size={32} />
+                   </div>
+                   <div className="text-left">
+                     <span className="text-sm font-bold text-blue-400 block mb-1">المستوى {selectedRow.gradeSection}</span>
+                     <h3 className="text-3xl font-bold text-white">تفاصيل الحصة</h3>
+                   </div>
                 </div>
 
-                <div className="space-y-6 text-right">
-                  <div className="space-y-2">
-                    <span className="text-xs font-bold text-blue-400 uppercase tracking-widest flex items-center gap-2 justify-end">
-                      المستوى: {selectedRow.gradeSection}
-                      <Target size={14} />
-                    </span>
-                    <h3 className="text-2xl font-bold text-white leading-tight">تفاصيل الحصة</h3>
-                  </div>
-
-                  <div className="space-y-6">
-                    <div className="p-6 bg-white/5 rounded-3xl border border-white/5 space-y-2">
-                      <div className="flex items-center gap-2 text-blue-400 font-bold text-xs mb-1 justify-end">
-                        <CheckCircle size={14} />
-                        الموارد المعرفية / التعلمات
-                      </div>
-                      <p className="text-lg text-slate-100 font-semibold leading-relaxed">
+                <div className="space-y-8">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-blue-400 font-bold text-sm justify-end">
+                      التعلمات والموارد المعرفية
+                      <Target size={18} />
+                    </div>
+                    <div className="bg-white/5 p-8 rounded-[2rem] border border-white/10">
+                      <p className="text-2xl font-bold text-white leading-relaxed">
                         {selectedRow.learnings}
                       </p>
                     </div>
+                  </div>
 
-                    <div className="p-6 bg-white/5 rounded-3xl border border-white/5 space-y-2">
-                      <div className="flex items-center gap-2 text-blue-400 font-bold text-xs mb-1 justify-end">
-                        <PenTool size={14} />
-                        محتوى التعلم / النشاط
-                      </div>
-                      <p className="text-md text-slate-300 leading-relaxed">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-blue-400 font-bold text-sm justify-end">
+                      محتوى التعلم / النشاط
+                      <PenTool size={18} />
+                    </div>
+                    <div className="bg-white/5 p-8 rounded-[2rem] border border-white/10">
+                      <p className="text-xl text-slate-300 leading-relaxed font-semibold">
                         {selectedRow.content}
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <button 
-                  onClick={() => setSelectedRow(null)}
-                  className="w-full py-4 bg-slate-100 text-slate-900 rounded-2xl font-bold transition-transform active:scale-95"
-                >
-                  إغلاق النافذة
-                </button>
+                <div className="text-center text-slate-500 text-sm animate-pulse">
+                  انقر في أي مكان للإغلاق
+                </div>
               </div>
             </motion.div>
           </motion.div>
@@ -281,7 +261,7 @@ export default function App() {
               <span className="text-xs font-bold text-white">تذكير</span>
             </div>
             <p className="text-[10px] text-slate-400 leading-relaxed">
-              تأكد من ضبط "تاريخ البداية" ليوافق أول أسبوع دراسي لضمان دقة الدروس.
+              يتم تحديث الموارد تلقائياً بناءً على تاريخ البداية المختار.
             </p>
           </GlassPanel>
         </div>
@@ -390,13 +370,13 @@ export default function App() {
                         onClick={() => setSelectedRow(row)}
                         className="glass-effect p-6 rounded-3xl flex flex-col md:flex-row items-start md:items-center gap-6 border-white/5 group transition-all cursor-pointer relative overflow-hidden"
                       >
-                        <div className="flex items-center gap-4 min-w-[180px]">
-                          <div className="w-14 h-14 rounded-2xl bg-blue-600/10 flex items-center justify-center text-blue-400 font-bold text-xs text-center p-2 leading-tight">
+                        <div className="flex items-center gap-4 min-w-[220px]">
+                          <div className="w-16 h-16 rounded-2xl bg-blue-600/10 flex items-center justify-center text-blue-400 font-bold text-[10px] text-center p-2 leading-tight border border-blue-500/20">
                             {formatDisplayTime(row.time)}
                           </div>
                           <div className="flex flex-col">
                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">المستوى</span>
-                            <span className="text-lg font-bold text-white">{row.gradeSection}</span>
+                            <span className="text-xl font-bold text-white">{row.gradeSection}</span>
                           </div>
                         </div>
 
@@ -405,17 +385,16 @@ export default function App() {
                             <PenTool size={14} className="group-hover:rotate-12 transition-transform" />
                             {row.field}
                           </div>
-                          <h4 className="text-md font-bold text-slate-100">{row.learnings}</h4>
+                          <h4 className="text-lg font-bold text-slate-100">{row.learnings}</h4>
                           <p className="text-sm text-slate-400 line-clamp-1 leading-relaxed">{row.content}</p>
                         </div>
 
                         <div className="hidden lg:flex items-center gap-3">
-                           <div className="px-4 py-2 rounded-xl bg-blue-500/10 border border-blue-500/10 text-[10px] font-bold text-blue-400 uppercase">
-                             انقر للتفاصيل
+                           <div className="px-5 py-2.5 rounded-2xl bg-blue-500/10 border border-blue-500/10 text-[10px] font-bold text-blue-400 uppercase tracking-wider">
+                             عرض التفاصيل
                            </div>
                         </div>
                         
-                        {/* Glow effect on hover */}
                         <div className="absolute inset-0 bg-blue-500/0 group-hover:bg-blue-500/5 transition-all duration-500 pointer-events-none" />
                       </motion.div>
                     ))}
