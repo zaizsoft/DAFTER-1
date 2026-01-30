@@ -22,146 +22,94 @@ import {
   Wrench,
   ChevronRight,
   Activity,
-  Palette,
-  Sun,
-  Moon,
-  Zap
+  Palette
 } from 'lucide-react';
 import { DailyRecordRow, TeacherInfo, WeeklySlot } from './types';
 import { WEEKLY_SCHEDULE, FIELD_NAME, ALL_LESSONS } from './constants';
 import { formatDate, getDayName, getLessonForSlot } from './utils';
 
-// --- أنظمة الألوان (Modern Skins) ---
+// --- أنظمة الألوان (Skins) ---
 const THEMES = {
-  crystal: {
-    name: "كريستال نقي",
-    isDark: false,
-    primary: "#3b82f6",
-    accent: "#6366f1",
-    bg: "#f0f4f8",
-    text: "#1e293b",
-    gradient: "radial-gradient(at 0% 0%, hsla(210,100%,95%,1) 0, transparent 50%), radial-gradient(at 100% 100%, hsla(240,100%,98%,1) 0, transparent 50%), radial-gradient(at 50% 50%, hsla(210,100%,90%,0.3) 0, transparent 100%)"
+  ocean: {
+    name: "محيط عميق",
+    primary: "#2563eb",
+    accent: "#06b6d4",
+    bg: "#0f172a",
+    gradient: "radial-gradient(at 0% 0%, hsla(222,47%,11%,1) 0, transparent 50%), radial-gradient(at 50% 0%, hsla(217,91%,60%,0.15) 0, transparent 50%)"
   },
-  emerald_light: {
-    name: "ربيع الزمرد",
-    isDark: false,
+  emerald: {
+    name: "غابة الزمرد",
     primary: "#10b981",
-    accent: "#059669",
-    bg: "#f0fdf4",
-    text: "#064e3b",
-    gradient: "radial-gradient(at 0% 0%, hsla(160,100%,95%,1) 0, transparent 50%), radial-gradient(at 100% 100%, hsla(150,100%,98%,1) 0, transparent 50%)"
+    accent: "#84cc16",
+    bg: "#061f1a",
+    gradient: "radial-gradient(at 0% 0%, hsla(164,86%,10%,1) 0, transparent 50%), radial-gradient(at 50% 0%, hsla(158,82%,46%,0.15) 0, transparent 50%)"
   },
-  sunset_bright: {
-    name: "صباح مشرق",
-    isDark: false,
-    primary: "#f59e0b",
-    accent: "#ef4444",
-    bg: "#fffcf0",
-    text: "#451a03",
-    gradient: "radial-gradient(at 0% 0%, hsla(45,100%,95%,1) 0, transparent 50%), radial-gradient(at 100% 100%, hsla(10,100%,97%,1) 0, transparent 50%)"
-  },
-  royal_dark: {
-    name: "الليل الملكي",
-    isDark: true,
+  royal: {
+    name: "بنفسجي ملكي",
     primary: "#8b5cf6",
     accent: "#ec4899",
-    bg: "#0f172a",
-    text: "#f8fafc",
+    bg: "#1e1b4b",
     gradient: "radial-gradient(at 0% 0%, hsla(244,47%,11%,1) 0, transparent 50%), radial-gradient(at 50% 0%, hsla(263,91%,60%,0.15) 0, transparent 50%)"
+  },
+  sunset: {
+    name: "غسق دافئ",
+    primary: "#f43f5e",
+    accent: "#f59e0b",
+    bg: "#1a0f0f",
+    gradient: "radial-gradient(at 0% 0%, hsla(350,47%,11%,1) 0, transparent 50%), radial-gradient(at 50% 0%, hsla(350,91%,60%,0.15) 0, transparent 50%)"
   }
 };
 
 type ThemeKey = keyof typeof THEMES;
 
-// --- المكونات الفرعية المتحركة ---
+// --- المكونات الفرعية ---
 
-const AnimatedIcon = ({ icon: Icon, size = 24, color = "currentColor", animate = true }: { icon: React.ElementType, size?: number, color?: string, animate?: boolean }) => (
-  <motion.div
-    animate={animate ? {
-      y: [0, -4, 0],
-      rotate: [0, 5, -5, 0],
-    } : {}}
-    transition={{
-      duration: 4,
-      repeat: Infinity,
-      ease: "easeInOut"
-    }}
-    style={{ color }}
-  >
-    <Icon size={size} />
-  </motion.div>
-);
-
-const GlassPanel = ({ children, className = "", delay = 0, isDark = false }: { children?: React.ReactNode, className?: string, delay?: number, isDark?: boolean }) => (
+const GlassPanel = ({ children, className = "", delay = 0 }: { children?: React.ReactNode, className?: string, delay?: number }) => (
   <motion.div 
-    initial={{ opacity: 0, scale: 0.95, y: 20 }}
-    animate={{ opacity: 1, scale: 1, y: 0 }}
-    transition={{ duration: 0.5, delay, type: "spring", stiffness: 100 }}
-    className={`glass-effect rounded-[2.5rem] p-8 ${isDark ? 'dark-glass' : 'light-glass'} ${className}`}
+    initial={{ opacity: 0, y: 15 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.4, delay }}
+    className={`glass-effect rounded-[2.5rem] p-6 ${className}`}
   >
     {children}
   </motion.div>
 );
 
-const NavButton = ({ icon: Icon, onClick, active = false, label = "", theme }: { icon: React.ElementType, onClick: () => void, active?: boolean, label?: string, theme: any }) => (
+const IconButton = ({ icon: Icon, onClick, active = false, label = "", color }: { icon: React.ElementType, onClick: () => void, active?: boolean, label?: string, color: string }) => (
   <motion.button
-    whileHover={{ x: 5, scale: 1.02 }}
-    whileTap={{ scale: 0.98 }}
+    whileTap={{ scale: 0.95 }}
     onClick={onClick}
-    className={`flex items-center gap-4 w-full p-4 rounded-2xl transition-all duration-300 relative overflow-hidden group ${
-      active ? 'shadow-lg' : 'opacity-70 hover:opacity-100'
+    className={`flex items-center gap-4 w-full p-4 rounded-2xl transition-all duration-300 ${
+      active ? 'bg-white/10 border border-white/20 shadow-lg' : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
     }`}
-    style={{ 
-      backgroundColor: active ? `${theme.primary}15` : 'transparent',
-      color: active ? theme.primary : theme.text,
-      border: active ? `1px solid ${theme.primary}33` : '1px solid transparent'
-    }}
+    style={active ? { borderColor: `${color}55`, color: color } : {}}
   >
-    {active && (
-      <motion.div 
-        layoutId="nav-active" 
-        className="absolute inset-0 z-0 opacity-10" 
-        style={{ backgroundColor: theme.primary }}
-      />
-    )}
-    <div className="relative z-10 flex items-center gap-4">
-      <AnimatedIcon icon={Icon} size={22} animate={active} color={active ? theme.primary : undefined} />
-      <span className="text-sm font-black tracking-wide">{label}</span>
-    </div>
+    <Icon size={20} className={active ? 'animate-pulse' : ''} />
+    <span className="text-sm font-bold tracking-wide">{label}</span>
   </motion.button>
 );
 
-const ModernInput = ({ label, icon: Icon, value, onChange, type = "text", theme }: { label: string, icon: React.ElementType, value: string, onChange: (v: string) => void, type?: string, theme: any }) => (
+const ModernField = ({ label, icon: Icon, value, onChange, type = "text", color }: { label: string, icon: React.ElementType, value: string, onChange: (v: string) => void, type?: string, color: string }) => (
   <div className="flex flex-col gap-2 w-full">
-    <label className="text-[10px] font-black text-slate-400 mr-2 flex items-center gap-2 uppercase tracking-widest">
-      <Icon size={14} style={{ color: theme.primary }} />
+    <label className="text-[10px] font-black text-slate-500 mr-2 flex items-center gap-2 uppercase tracking-widest">
+      <Icon size={12} style={{ color }} />
       {label}
     </label>
-    <div className="relative group">
+    <div className="relative">
       <input 
         type={type}
         value={value} 
         onChange={(e) => onChange(e.target.value)}
-        className={`w-full px-6 py-4 rounded-2xl outline-none transition-all text-sm font-bold shadow-sm ${
-          theme.isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-slate-200 text-slate-800'
-        } focus:ring-4`}
-        style={{ 
-          borderColor: "transparent",
-        }}
-        onFocus={(e) => {
-          e.currentTarget.style.borderColor = theme.primary;
-          e.currentTarget.style.boxShadow = `0 0 0 4px ${theme.primary}15`;
-        }}
-        onBlur={(e) => {
-          e.currentTarget.style.borderColor = "transparent";
-          e.currentTarget.style.boxShadow = "none";
-        }}
+        className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl focus:bg-white/10 outline-none transition-all text-sm text-slate-100"
+        style={{ borderColor: "rgba(255,255,255,0.1)" }}
+        onFocus={(e) => e.currentTarget.style.borderColor = color}
+        onBlur={(e) => e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"}
       />
     </div>
   </div>
 );
 
-const TypewriterText = ({ text, className = "", speed = 30, cursorColor = "#3b82f6" }: { text: string, className?: string, speed?: number, cursorColor?: string }) => {
+const TypewriterText = ({ text, className = "", speed = 20, cursorColor = "#fff" }: { text: string, className?: string, speed?: number, cursorColor?: string }) => {
   const [displayText, setDisplayText] = useState("");
   useEffect(() => {
     let currentText = "";
@@ -181,17 +129,23 @@ const TypewriterText = ({ text, className = "", speed = 30, cursorColor = "#3b82
   return (
     <span className={className}>
       {displayText}
-      <motion.span 
-        animate={{ opacity: [0, 1, 0] }}
-        transition={{ duration: 0.8, repeat: Infinity }}
-        className="inline-block w-[3px] h-[1em] ml-1 align-middle" 
-        style={{ backgroundColor: cursorColor }}
-      />
+      {displayText.length < text.length && (
+        <span className="inline-block w-[2px] h-[1em] ml-1 align-middle animate-pulse" style={{ backgroundColor: cursorColor }}></span>
+      )}
     </span>
   );
 };
 
-// --- Added LiveDigitalClock Component ---
+const PulsatingText = ({ text, className = "" }: { text: string, className?: string }) => (
+  <motion.span
+    animate={{ opacity: [0.7, 1, 0.7] }}
+    transition={{ duration: 3, repeat: Infinity }}
+    className={className}
+  >
+    {text}
+  </motion.span>
+);
+
 const LiveDigitalClock = ({ color }: { color: string }) => {
   const [time, setTime] = useState(new Date());
   useEffect(() => {
@@ -199,23 +153,14 @@ const LiveDigitalClock = ({ color }: { color: string }) => {
     return () => clearInterval(timer);
   }, []);
   return (
-    <div className="flex flex-col items-center">
-      <span className="text-2xl font-black font-mono tracking-tighter" style={{ color }}>
-        {time.toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+    <div className="flex flex-col items-center justify-center bg-white/5 border border-white/10 rounded-2xl px-6 py-3 min-w-[150px]" style={{ borderColor: `${color}22` }}>
+      <span className="text-[9px] font-black uppercase tracking-[0.2em] mb-1" style={{ color }}>الوقت الحالي</span>
+      <span className="text-xl font-bold text-white tabular-nums tracking-tighter">
+        {time.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
       </span>
     </div>
   );
 };
-
-// --- Added PulsatingText Component ---
-const PulsatingText = ({ text }: { text: string }) => (
-  <motion.span
-    animate={{ opacity: [0.6, 1, 0.6] }}
-    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-  >
-    {text}
-  </motion.span>
-);
 
 // --- المكون الرئيسي ---
 
@@ -225,10 +170,11 @@ export default function App() {
   const [selectedRow, setSelectedRow] = useState<DailyRecordRow | null>(null);
   const [gradeFilter, setGradeFilter] = useState<string>('all');
   
+  // السكن (الثيم)
   const [themeKey, setThemeKey] = useState<ThemeKey>(() => {
-    return (localStorage.getItem('app_theme_v2') as ThemeKey) || 'crystal';
+    return (localStorage.getItem('app_theme') as ThemeKey) || 'ocean';
   });
-  const theme = THEMES[themeKey];
+  const currentTheme = THEMES[themeKey];
 
   const [semesterStart, setSemesterStart] = useState<string>(() => {
     return localStorage.getItem('semester_start') || "2026-01-04";
@@ -247,20 +193,21 @@ export default function App() {
   const [targetDate, setTargetDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 1000);
+    const timer = setTimeout(() => setIsLoading(false), 800);
     return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
     localStorage.setItem('semester_start', semesterStart);
     localStorage.setItem('teacher_info', JSON.stringify(teacherInfo));
-    localStorage.setItem('app_theme_v2', themeKey);
+    localStorage.setItem('app_theme', themeKey);
     
-    document.body.style.backgroundColor = theme.bg;
-    document.body.style.color = theme.text;
+    // حقن ألوان الثيم في CSS
+    document.documentElement.style.setProperty('--primary-color', currentTheme.primary);
+    document.body.style.backgroundColor = currentTheme.bg;
     const mesh = document.querySelector('.mesh-bg') as HTMLElement;
-    if (mesh) mesh.style.backgroundImage = theme.gradient;
-  }, [semesterStart, teacherInfo, themeKey, theme]);
+    if (mesh) mesh.style.backgroundImage = currentTheme.gradient;
+  }, [semesterStart, teacherInfo, themeKey, currentTheme]);
 
   const rows = useMemo(() => {
     const dateObj = new Date(targetDate);
@@ -294,74 +241,60 @@ export default function App() {
       .sort((a, b) => a.dayIndex - b.dayIndex || a.time.localeCompare(b.time));
   }, [gradeFilter]);
 
+  const goToNextDay = () => {
+    const d = new Date(targetDate);
+    d.setDate(d.getDate() + 1);
+    setTargetDate(d.toISOString().split('T')[0]);
+  };
+
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center transition-all duration-1000" style={{ backgroundColor: theme.bg }}>
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-8">
-          <motion.div 
-            animate={{ 
-              rotate: [0, 360],
-              scale: [1, 1.2, 1]
-            }} 
-            transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-            className="w-24 h-24 rounded-[2rem] flex items-center justify-center shadow-2xl" 
-            style={{ 
-              background: `linear-gradient(135deg, ${theme.primary}, ${theme.accent})`,
-              boxShadow: `0 20px 60px ${theme.primary}55`
-            }}
-          >
-            <Sparkles size={48} className="text-white" />
-          </motion.div>
-          <div className="space-y-2 text-center">
-            <h2 className="text-2xl font-black tracking-tighter" style={{ color: theme.primary }}>الدفتر الذكي Pro</h2>
-            <div className="flex gap-1 justify-center">
-              {[0, 1, 2].map(i => (
-                <motion.div key={i} animate={{ opacity: [0, 1, 0] }} transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }} className="w-2 h-2 rounded-full" style={{ backgroundColor: theme.primary }} />
-              ))}
-            </div>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: currentTheme.bg }}>
+        <motion.div animate={{ scale: [1, 1.1, 1], opacity: [0.5, 1, 0.5] }} transition={{ duration: 1.5, repeat: Infinity }} className="flex flex-col items-center gap-6">
+          <div className="w-20 h-20 rounded-3xl flex items-center justify-center shadow-2xl" style={{ backgroundColor: currentTheme.primary, boxShadow: `0 20px 50px ${currentTheme.primary}44` }}>
+            <Sparkles size={40} className="text-white" />
           </div>
+          <h2 className="text-xl font-bold text-white tracking-widest uppercase">جاري التحميل...</h2>
         </motion.div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row overflow-hidden relative theme-transition">
+    <div className="min-h-screen flex flex-col md:flex-row overflow-hidden" style={{ color: '#fff' }}>
       
       {/* النافذة المنبثقة للتفاصيل */}
       <AnimatePresence>
         {selectedRow && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedRow(null)} className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-xl flex items-center justify-center p-4 cursor-pointer">
-            <motion.div initial={{ scale: 0.9, opacity: 0, y: 50 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 50 }} onClick={(e) => e.stopPropagation()} className={`rounded-[3.5rem] w-full max-w-4xl overflow-hidden shadow-2xl relative cursor-default max-h-[90vh] overflow-y-auto border ${theme.isDark ? 'dark-glass' : 'light-glass'}`}>
-              <button onClick={() => setSelectedRow(null)} className={`absolute top-8 left-8 p-4 rounded-full transition-all z-10 ${theme.isDark ? 'bg-white/5 hover:bg-white/10' : 'bg-black/5 hover:bg-black/10'}`}><X size={24} /></button>
-              
-              <div className="p-12 md:p-20 space-y-12 text-right">
-                <div className="flex flex-col md:flex-row justify-between items-center border-b border-black/5 pb-10 gap-8">
-                   <motion.div animate={{ rotate: [0, 10, -10, 0] }} transition={{ duration: 5, repeat: Infinity }} className="p-8 rounded-[2.5rem] shadow-2xl" style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.accent})`, boxShadow: `0 25px 50px ${theme.primary}44` }}>
-                     <Activity className="text-white" size={56} />
-                   </motion.div>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedRow(null)} className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-2xl flex items-center justify-center p-4 cursor-pointer">
+            <motion.div initial={{ scale: 0.9, opacity: 0, y: 40 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 40 }} onClick={(e) => e.stopPropagation()} className="glass-effect rounded-[3rem] w-full max-w-4xl overflow-hidden border border-white/20 shadow-2xl relative cursor-default max-h-[90vh] overflow-y-auto">
+              <button onClick={() => setSelectedRow(null)} className="absolute top-8 left-8 p-3 rounded-full bg-white/5 hover:bg-white/10 transition-colors text-slate-400 hover:text-white z-10"><X size={24} /></button>
+              <div className="p-10 md:p-16 space-y-12 text-right">
+                <div className="flex flex-col md:flex-row justify-between items-center border-b border-white/10 pb-8 gap-6">
+                   <div className="p-6 rounded-[2.5rem] shadow-2xl" style={{ background: `linear-gradient(to bottom right, ${currentTheme.primary}, ${currentTheme.accent})`, boxShadow: `0 20px 40px ${currentTheme.primary}44` }}>
+                     <Activity className="text-white" size={48} />
+                   </div>
                    <div className="text-center md:text-right">
-                     <span className="text-xs font-black block mb-3 uppercase tracking-[0.4em] opacity-60" style={{ color: theme.accent }}>بطاقة الحصة الذكية</span>
-                     <h3 className="text-5xl font-black leading-tight tracking-tighter" style={{ color: theme.text }}>السنة {selectedRow.gradeSection}</h3>
+                     <span className="text-xs font-black block mb-2 uppercase tracking-[0.3em]" style={{ color: currentTheme.accent }}>بطاقة الحصة اليومية • السنة {selectedRow.gradeSection}</span>
+                     <h3 className="text-4xl font-bold text-white leading-tight">تفاصيل النشاط البدني</h3>
                    </div>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-4">
-                    <div className="flex items-center gap-3 font-black text-[10px] justify-end uppercase tracking-widest opacity-60" style={{ color: theme.primary }}>المورد المعرفي <Target size={18} /></div>
-                    <div className={`p-10 rounded-[2.5rem] border shadow-sm ${theme.isDark ? 'bg-white/5 border-white/5' : 'bg-blue-50/50 border-blue-100/50'}`}><p className="text-2xl font-bold leading-relaxed">{selectedRow.learnings}</p></div>
+                    <div className="flex items-center gap-3 font-black text-xs justify-end uppercase tracking-widest" style={{ color: currentTheme.primary }}>المورد المعرفي <Target size={18} /></div>
+                    <div className="bg-white/5 p-8 rounded-[2rem] border border-white/5 h-full"><p className="text-xl font-bold text-slate-100">{selectedRow.learnings}</p></div>
                   </div>
                   <div className="space-y-4">
-                    <div className="flex items-center gap-3 font-black text-[10px] justify-end uppercase tracking-widest opacity-60" style={{ color: theme.accent }}>محتوى التعلم <PenTool size={18} /></div>
-                    <div className={`p-10 rounded-[2.5rem] border shadow-sm ${theme.isDark ? 'bg-white/5 border-white/5' : 'bg-indigo-50/50 border-indigo-100/50'}`}><p className="text-2xl font-bold leading-relaxed opacity-80">{selectedRow.content}</p></div>
+                    <div className="flex items-center gap-3 font-black text-xs justify-end uppercase tracking-widest" style={{ color: currentTheme.accent }}>محتوى التعلم <PenTool size={18} /></div>
+                    <div className="bg-white/5 p-8 rounded-[2rem] border border-white/5 h-full"><p className="text-xl text-slate-300 font-semibold">{selectedRow.content}</p></div>
                   </div>
                   <div className="space-y-4 md:col-span-2">
-                    <div className="flex items-center gap-3 font-black text-[10px] justify-end uppercase tracking-widest opacity-60" style={{ color: '#10b981' }}>شرح الموقف التعليمي <MapPin size={18} /></div>
-                    <div className={`p-10 rounded-[2.5rem] border shadow-sm leading-relaxed ${theme.isDark ? 'bg-emerald-500/5 border-white/5' : 'bg-emerald-50 border-emerald-100'}`}><p className="text-xl font-bold opacity-90">{selectedRow.teachingSituation || "تقويم المكتسبات"}</p></div>
+                    <div className="flex items-center gap-3 font-black text-xs justify-end uppercase tracking-widest" style={{ color: '#10b981' }}>شرح الموقف التعليمي <MapPin size={18} /></div>
+                    <div className="bg-emerald-500/5 p-8 rounded-[2rem] border border-emerald-500/10 shadow-inner"><p className="text-xl text-slate-200 leading-relaxed font-semibold">{selectedRow.teachingSituation || "غير محدد في المخطط"}</p></div>
                   </div>
                   <div className="space-y-4 md:col-span-2">
-                    <div className="flex items-center gap-3 font-black text-[10px] justify-end uppercase tracking-widest opacity-60" style={{ color: '#f59e0b' }}>الوسائل المستخدمة <Wrench size={18} /></div>
-                    <div className={`p-10 rounded-[2.5rem] border shadow-sm ${theme.isDark ? 'bg-amber-500/5 border-white/5' : 'bg-amber-50 border-amber-100'}`}><p className="text-xl font-black italic" style={{ color: theme.isDark ? '#fcd34d' : '#92400e' }}>{selectedRow.tools || "الأدوات الرياضية المتاحة"}</p></div>
+                    <div className="flex items-center gap-3 font-black text-xs justify-end uppercase tracking-widest" style={{ color: '#f59e0b' }}>الوسائل المستعملة <Wrench size={18} /></div>
+                    <div className="bg-amber-500/10 p-8 rounded-[2rem] border border-amber-500/20"><p className="text-xl text-amber-100 font-bold italic">{selectedRow.tools || "كافة الوسائل المتاحة"}</p></div>
                   </div>
                 </div>
               </div>
@@ -370,139 +303,94 @@ export default function App() {
         )}
       </AnimatePresence>
       
-      {/* القائمة الجانبية (Sidebar) */}
-      <nav className={`hidden md:flex flex-col w-96 border-l p-10 z-50 transition-all duration-700 ${theme.isDark ? 'bg-slate-950/40 border-white/10 backdrop-blur-3xl' : 'bg-white/40 border-black/5 backdrop-blur-3xl'}`}>
-        <div className="flex items-center gap-6 mb-20 group">
-          <motion.div 
-            whileHover={{ rotate: 180, scale: 1.1 }}
-            className="p-5 rounded-3xl shadow-xl flex items-center justify-center transition-transform" 
-            style={{ 
-              background: `linear-gradient(135deg, ${theme.primary}, ${theme.accent})`, 
-              boxShadow: `0 15px 35px ${theme.primary}44` 
-            }}
-          >
-            <Zap className="text-white" size={32} />
-          </motion.div>
-          <div>
-            <h1 className="text-2xl font-black tracking-tighter" style={{ color: theme.text }}>الدفتر الذكي</h1>
-            <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-50" style={{ color: theme.primary }}>Premium Pro V2</p>
-          </div>
+      {/* القائمة الجانبية */}
+      <nav className="hidden md:flex flex-col w-80 bg-slate-950/40 backdrop-blur-3xl border-l border-white/10 p-8 z-50">
+        <div className="flex items-center gap-5 mb-16">
+          <div className="p-4 rounded-2xl shadow-2xl" style={{ backgroundColor: currentTheme.primary, boxShadow: `0 10px 30px ${currentTheme.primary}44` }}><LayoutDashboard className="text-white" size={32} /></div>
+          <div><h1 className="text-xl font-bold text-white tracking-tight">الدفتر الذكي</h1><p className="text-[10px] font-black uppercase tracking-widest" style={{ color: currentTheme.accent }}>Smart Teacher V2</p></div>
         </div>
-
-        <div className="flex-1 space-y-4">
-          <NavButton icon={FileText} label="جدول اليوم" active={activeView === 'record'} onClick={() => setActiveView('record')} theme={theme} />
-          <NavButton icon={List} label="خطة التوزيع" active={activeView === 'distribution'} onClick={() => setActiveView('distribution')} theme={theme} />
-          <NavButton icon={SettingsIcon} label="الإعدادات" active={activeView === 'settings'} onClick={() => setActiveView('settings')} theme={theme} />
+        <div className="flex-1 space-y-3">
+          <IconButton icon={FileText} label="جدول اليوم" active={activeView === 'record'} onClick={() => setActiveView('record')} color={currentTheme.primary} />
+          <IconButton icon={List} label="توزيع الحصص" active={activeView === 'distribution'} onClick={() => setActiveView('distribution')} color={currentTheme.primary} />
+          <IconButton icon={SettingsIcon} label="الإعدادات" active={activeView === 'settings'} onClick={() => setActiveView('settings')} color={currentTheme.primary} />
         </div>
-
-        <div className="mt-auto space-y-8">
-          <div className="flex justify-center"><LiveDigitalClock color={theme.primary} /></div>
-          <motion.div whileHover={{ scale: 1.02 }} className={`p-8 rounded-[2.5rem] border text-center relative overflow-hidden ${theme.isDark ? 'bg-white/5 border-white/5' : 'bg-white/80 border-black/5 shadow-sm'}`}>
-            <p className="text-[9px] font-black opacity-40 uppercase tracking-[0.4em] mb-2">وزارة التربية الوطنية</p>
-            <p className="text-xs font-black tracking-widest" style={{ color: theme.primary }}>الجمهورية الجزائرية</p>
-          </motion.div>
+        <div className="mt-auto space-y-6">
+          <LiveDigitalClock color={currentTheme.primary} />
+          <div className="p-6 bg-white/5 rounded-3xl border border-white/5 text-center"><p className="text-[10px] font-black text-slate-500 uppercase mb-1">الجمهورية الجزائرية</p><p className="text-xs font-bold" style={{ color: currentTheme.accent }}>وزارة التربية الوطنية</p></div>
         </div>
       </nav>
 
-      {/* المحتوى الرئيسي (Main Content) */}
-      <main className="flex-1 overflow-y-auto px-8 py-10 md:px-20 md:py-16 space-y-16">
-        <header className="flex flex-col md:flex-row justify-between items-center gap-10">
-          <div className="flex items-center gap-8">
-            <motion.div 
-              whileHover={{ rotate: 15, scale: 1.1 }}
-              className="w-20 h-20 rounded-[2rem] flex items-center justify-center p-1 shadow-2xl transition-transform" 
-              style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.accent})` }}
-            >
-              <div className={`w-full h-full rounded-[1.8rem] flex items-center justify-center ${theme.isDark ? 'bg-slate-900' : 'bg-white'}`}>
-                <User size={36} style={{ color: theme.primary }} />
-              </div>
-            </motion.div>
-            <div className="space-y-1">
-              <h2 className="text-4xl font-black tracking-tighter" style={{ color: theme.text }}>مرحباً بك، {teacherInfo.name.split(' ')[0]}</h2>
-              <div className="flex items-center gap-3 opacity-60 font-bold text-sm">
-                <School size={18} style={{ color: theme.primary }} />
-                <span>{teacherInfo.school}</span>
-              </div>
+      {/* المحتوى الرئيسي */}
+      <main className="flex-1 overflow-y-auto px-6 py-8 md:px-16 md:py-12 space-y-12">
+        <header className="flex flex-col md:flex-row justify-between items-center gap-8">
+          <div className="flex items-center gap-6">
+            <div className="w-16 h-16 rounded-[1.5rem] flex items-center justify-center p-0.5 shadow-2xl" style={{ background: `linear-gradient(to top right, ${currentTheme.primary}, ${currentTheme.accent})` }}>
+              <div className="w-full h-full rounded-[1.4rem] bg-slate-900 flex items-center justify-center"><User size={28} style={{ color: currentTheme.primary }} /></div>
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-white tracking-tight">مرحباً أستاذ، {teacherInfo.name.split(' ')[0]}</h2>
+              <p className="text-slate-400 text-sm flex items-center gap-2 font-bold"><School size={16} style={{ color: currentTheme.primary }} />{teacherInfo.school}</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
              <div className="hidden lg:block text-right">
-                <p className="text-[10px] font-black opacity-40 uppercase tracking-widest mb-1">توقيت المعاينة</p>
-                <p className="text-lg font-black">{getDayName(new Date(targetDate))} • {formatDate(new Date(targetDate))}</p>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">تاريخ العرض</p>
+                <p className="text-sm font-bold text-white">{getDayName(new Date(targetDate))}، {formatDate(new Date(targetDate))}</p>
              </div>
-             <div className="md:hidden"><LiveDigitalClock color={theme.primary} /></div>
+             <LiveDigitalClock color={currentTheme.primary} />
           </div>
         </header>
 
         <AnimatePresence mode="wait">
           {activeView === 'settings' ? (
-            <motion.div key="settings" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-              <GlassPanel isDark={theme.isDark} className="space-y-10">
-                <div className="flex items-center gap-4 border-b border-black/5 pb-8">
-                  <AnimatedIcon icon={SettingsIcon} color={theme.primary} />
-                  <h3 className="text-2xl font-black">إعدادات الجدول والوقت</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <ModernInput label="بداية الفصل الدراسي" type="date" icon={Calendar} value={semesterStart} onChange={setSemesterStart} theme={theme} />
-                  <ModernInput label="تاريخ المعاينة الحالية" type="date" icon={Clock} value={targetDate} onChange={setTargetDate} theme={theme} />
+            <motion.div key="settings-view" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <GlassPanel className="p-10 space-y-8">
+                <div className="flex items-center gap-4 border-b border-white/10 pb-6"><SettingsIcon style={{ color: currentTheme.primary }} size={24} /><h3 className="text-xl font-bold">إعدادات الوقت والجدولة</h3></div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <ModernField label="تاريخ بداية الفصل" type="date" icon={Calendar} value={semesterStart} onChange={setSemesterStart} color={currentTheme.primary} />
+                  <ModernField label="تاريخ معاينة الدفتر" type="date" icon={Clock} value={targetDate} onChange={setTargetDate} color={currentTheme.primary} />
                 </div>
               </GlassPanel>
 
-              <GlassPanel isDark={theme.isDark} className="space-y-10">
-                <div className="flex items-center gap-4 border-b border-black/5 pb-8">
-                  <AnimatedIcon icon={Palette} color={theme.primary} />
-                  <h3 className="text-2xl font-black">سكن البرنامج (ألوان عصرية)</h3>
-                </div>
+              <GlassPanel className="p-10 space-y-8">
+                <div className="flex items-center gap-4 border-b border-white/10 pb-6"><Palette style={{ color: currentTheme.primary }} size={24} /><h3 className="text-xl font-bold">تغيير سكن البرنامج (الألوان)</h3></div>
                 <div className="grid grid-cols-2 gap-4">
                   {(Object.keys(THEMES) as ThemeKey[]).map((key) => (
-                    <motion.button 
+                    <button 
                       key={key} 
-                      whileHover={{ scale: 1.03, y: -2 }}
-                      whileTap={{ scale: 0.97 }}
                       onClick={() => setThemeKey(key)}
-                      className={`p-6 rounded-3xl border transition-all flex flex-col items-center gap-4 relative ${themeKey === key ? 'shadow-xl' : 'hover:shadow-md opacity-80'}`}
-                      style={{ 
-                        borderColor: themeKey === key ? THEMES[key].primary : 'rgba(0,0,0,0.05)',
-                        backgroundColor: themeKey === key ? `${THEMES[key].primary}08` : 'transparent'
-                      }}
+                      className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-3 ${themeKey === key ? 'bg-white/10' : 'bg-white/5 hover:bg-white/10'}`}
+                      style={{ borderColor: themeKey === key ? THEMES[key].primary : 'rgba(255,255,255,0.1)' }}
                     >
-                      <div className="w-14 h-14 rounded-full shadow-lg" style={{ background: `linear-gradient(135deg, ${THEMES[key].primary}, ${THEMES[key].accent})` }}></div>
-                      <span className="text-xs font-black tracking-tighter">{THEMES[key].name}</span>
-                      {key === 'crystal' && <Sun size={12} className="absolute top-3 right-3 opacity-30" />}
-                      {key === 'royal_dark' && <Moon size={12} className="absolute top-3 right-3 opacity-30" />}
-                    </motion.button>
+                      <div className="w-10 h-10 rounded-full shadow-lg" style={{ background: `linear-gradient(to bottom right, ${THEMES[key].primary}, ${THEMES[key].accent})` }}></div>
+                      <span className="text-xs font-bold">{THEMES[key].name}</span>
+                    </button>
                   ))}
                 </div>
               </GlassPanel>
 
-              <GlassPanel isDark={theme.isDark} className="space-y-10 lg:col-span-2">
-                <div className="flex items-center gap-4 border-b border-black/5 pb-8">
-                  <AnimatedIcon icon={User} color={theme.primary} />
-                  <h3 className="text-2xl font-black">معلومات الأستاذ والمؤسسة</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                  <ModernInput label="اسم الأستاذ" icon={User} value={teacherInfo.name} onChange={(v) => setTeacherInfo({...teacherInfo, name: v})} theme={theme} />
-                  <ModernInput label="المؤسسة التعليمية" icon={School} value={teacherInfo.school} onChange={(v) => setTeacherInfo({...teacherInfo, school: v})} theme={theme} />
-                  <ModernInput label="السيد المفتش" icon={CheckCircle} value={teacherInfo.inspector} onChange={(v) => setTeacherInfo({...teacherInfo, inspector: v})} theme={theme} />
-                  <ModernInput label="السيد المدير" icon={GraduationCap} value={teacherInfo.manager} onChange={(v) => setTeacherInfo({...teacherInfo, manager: v})} theme={theme} />
+              <GlassPanel className="p-10 space-y-8 lg:col-span-2">
+                <div className="flex items-center gap-4 border-b border-white/10 pb-6"><User style={{ color: currentTheme.primary }} size={24} /><h3 className="text-xl font-bold">الملف الشخصي</h3></div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <ModernField label="اسم الأستاذ" icon={User} value={teacherInfo.name} onChange={(v) => setTeacherInfo({...teacherInfo, name: v})} color={currentTheme.primary} />
+                  <ModernField label="المدرسة" icon={School} value={teacherInfo.school} onChange={(v) => setTeacherInfo({...teacherInfo, school: v})} color={currentTheme.primary} />
+                  <ModernField label="المفتش" icon={CheckCircle} value={teacherInfo.inspector} onChange={(v) => setTeacherInfo({...teacherInfo, inspector: v})} color={currentTheme.primary} />
+                  <ModernField label="المدير" icon={GraduationCap} value={teacherInfo.manager} onChange={(v) => setTeacherInfo({...teacherInfo, manager: v})} color={currentTheme.primary} />
                 </div>
               </GlassPanel>
             </motion.div>
           ) : activeView === 'distribution' ? (
-            <motion.div key="distribution" initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} className="space-y-10">
-              <GlassPanel isDark={theme.isDark}>
-                <div className="flex flex-col md:flex-row justify-between items-center gap-8 mb-16">
-                  <div className="flex items-center gap-6">
-                    <AnimatedIcon icon={Filter} color={theme.primary} />
-                    <h3 className="text-3xl font-black tracking-tighter">خطة توزيع الحصص</h3>
-                  </div>
-                  <div className="flex gap-2 p-2 rounded-[1.5rem] bg-black/5 border border-black/5 backdrop-blur-md">
+            <motion.div key="distribution-view" initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 30 }} className="space-y-8">
+              <GlassPanel className="p-8">
+                <div className="flex flex-col md:flex-row justify-between items-center gap-6 mb-10">
+                  <div className="flex items-center gap-4"><Filter style={{ color: currentTheme.primary }} size={24} /><h3 className="text-xl font-bold text-white">جدول توزيع الحصص</h3></div>
+                  <div className="flex gap-2 bg-slate-900/50 p-2 rounded-2xl border border-white/5">
                     {['all', '1', '2', '3', '4', '5'].map(g => (
                       <button 
                         key={g} 
                         onClick={() => setGradeFilter(g)} 
-                        className={`px-8 py-3 rounded-2xl text-xs font-black transition-all shadow-sm ${gradeFilter === g ? 'text-white' : 'opacity-40 hover:opacity-100'}`}
-                        style={{ backgroundColor: gradeFilter === g ? theme.primary : 'transparent' }}
+                        className={`px-6 py-2.5 rounded-xl text-xs font-black transition-all ${gradeFilter === g ? 'text-white shadow-xl' : 'text-slate-500'}`}
+                        style={{ backgroundColor: gradeFilter === g ? currentTheme.primary : 'transparent' }}
                       >
                         {g === 'all' ? 'الكل' : `السنة ${g}`}
                       </button>
@@ -511,14 +399,14 @@ export default function App() {
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-right border-collapse">
-                    <thead><tr className="border-b border-black/5 text-[10px] font-black uppercase tracking-[0.2em] opacity-40"><th className="py-8 px-6">اليوم الدراسي</th><th className="py-8 px-6">التوقيت الزمني</th><th className="py-8 px-6">المستوى</th><th className="py-8 px-6">الفوج</th></tr></thead>
-                    <tbody className="divide-y divide-black/5">
+                    <thead><tr className="border-b border-white/10 text-slate-500 text-xs font-black uppercase"><th className="py-6 px-4">اليوم</th><th className="py-6 px-4">التوقيت</th><th className="py-6 px-4">المستوى</th><th className="py-6 px-4">الفوج</th></tr></thead>
+                    <tbody>
                       {distributionSlots.map((slot, idx) => (
-                        <tr key={idx} className="group hover:bg-black/[0.02] transition-colors">
-                          <td className="py-8 px-6 font-black text-lg">{slot.dayName}</td>
-                          <td className="py-8 px-6 font-mono text-xl" style={{ color: theme.primary }}>{slot.time.replace('/', ' - ')}</td>
-                          <td className="py-8 px-6 font-black opacity-80 text-lg">السنة {slot.grade} ابتدائي</td>
-                          <td className="py-8 px-6"><span className="px-6 py-3 bg-black/5 rounded-2xl font-black text-sm">الفوج {slot.section}</span></td>
+                        <tr key={idx} className="border-b border-white/5 hover:bg-white/5 transition-all group">
+                          <td className="py-6 px-4 font-bold text-slate-200">{slot.dayName}</td>
+                          <td className="py-6 px-4 font-mono" style={{ color: currentTheme.primary }}>{slot.time.replace('/', ' - ')}</td>
+                          <td className="py-6 px-4 font-black text-slate-300">السنة {slot.grade} ابتدائي</td>
+                          <td className="py-6 px-4"><span className="px-4 py-2 bg-white/5 rounded-xl border border-white/5 font-bold">({slot.section})</span></td>
                         </tr>
                       ))}
                     </tbody>
@@ -527,87 +415,45 @@ export default function App() {
               </GlassPanel>
             </motion.div>
           ) : (
-            <motion.div key="record" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+            <motion.div key="record-view" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
               {rows.length > 0 ? (
-                <div className="grid grid-cols-1 gap-6">
+                <div className="grid grid-cols-1 gap-5">
                   {rows.map((row, idx) => (
-                    <motion.div 
-                      key={idx} 
-                      whileHover={{ y: -6, scale: 1.01 }} 
-                      whileTap={{ scale: 0.99 }} 
-                      onClick={() => setSelectedRow(row)} 
-                      className={`p-10 rounded-[3rem] flex flex-col lg:flex-row items-center gap-12 border transition-all duration-500 cursor-pointer relative group overflow-hidden ${
-                        theme.isDark ? 'dark-glass' : 'light-glass shadow-xl shadow-blue-900/5'
-                      }`}
-                    >
-                      <div className="absolute top-0 right-0 w-2 h-full transition-all group-hover:w-4" style={{ backgroundColor: theme.primary }} />
-                      
-                      <div className="flex items-center gap-8 min-w-[320px] w-full lg:w-auto">
-                        <div className="w-32 h-20 rounded-[1.8rem] flex items-center justify-center font-black text-sm text-center border shadow-inner transition-all group-hover:bg-white/10" style={{ 
-                          color: theme.primary,
-                          backgroundColor: `${theme.primary}10`,
-                          borderColor: `${theme.primary}33`
-                        }}>
+                    <motion.div key={idx} whileHover={{ y: -4 }} whileTap={{ scale: 0.99 }} onClick={() => setSelectedRow(row)} className="glass-effect p-8 rounded-[2.5rem] flex flex-col lg:flex-row items-center gap-8 border-white/5 group cursor-pointer relative transition-all duration-500 shadow-xl" style={{ hoverBorderColor: currentTheme.primary }}>
+                      <div className="flex items-center gap-6 min-w-[280px] w-full lg:w-auto">
+                        <div className="w-28 h-16 rounded-[1.5rem] bg-white/5 flex items-center justify-center font-black text-xs text-center border border-white/10 group-hover:text-white transition-all shadow-lg" style={{ color: currentTheme.primary }}>
                           {row.time.replace('/', ' - ')}
                         </div>
-                        <div className="flex flex-col">
-                          <span className="text-[10px] font-black opacity-40 uppercase tracking-widest mb-1">المستوى</span>
-                          <span className="text-3xl font-black tracking-tighter" style={{ color: theme.text }}>{row.gradeSection}</span>
-                        </div>
+                        <div className="flex flex-col"><span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">المستوى</span><span className="text-xl font-black text-white group-hover:text-blue-400">السنة {row.gradeSection}</span></div>
                       </div>
-
-                      <div className="flex-1 w-full text-right space-y-3">
-                        <div className="flex items-center gap-2 font-black text-[11px] justify-end lg:justify-start uppercase tracking-[0.3em]" style={{ color: theme.primary }}>
-                          <AnimatedIcon icon={PenTool} size={16} color={theme.primary} />
-                          <PulsatingText text={row.field} />
-                        </div>
-                        <h4 className="text-2xl font-black leading-tight">
-                          <TypewriterText text={row.learnings} speed={15} cursorColor={theme.primary} />
-                        </h4>
-                        <div className="text-sm font-bold opacity-50 italic line-clamp-1">{row.content}</div>
+                      <div className="flex-1 w-full text-right space-y-2">
+                        <div className="flex items-center gap-2 font-black text-[10px] justify-end lg:justify-start uppercase tracking-widest" style={{ color: currentTheme.primary }}><PenTool size={14} /><PulsatingText text={row.field} /></div>
+                        <h4 className="text-xl font-bold text-slate-100"><TypewriterText text={row.learnings} speed={10} cursorColor={currentTheme.primary} /></h4>
+                        <div className="text-sm text-slate-500 italic line-clamp-1">{row.content}</div>
                       </div>
-
                       <div className="hidden xl:flex items-center">
-                        <motion.div 
-                          whileHover={{ scale: 1.1 }}
-                          className="w-16 h-16 rounded-full flex items-center justify-center transition-all shadow-lg" 
-                          style={{ backgroundColor: `${theme.primary}15`, color: theme.primary }}
-                        >
-                          <ChevronRight size={24} />
-                        </motion.div>
+                        <div className="px-8 py-4 rounded-2xl bg-white/5 text-xs font-black text-slate-400 uppercase tracking-widest border border-white/10 group-hover:text-white transition-all" style={{ groupHoverBackgroundColor: currentTheme.primary }}>
+                          عرض المذكرة
+                        </div>
                       </div>
                     </motion.div>
                   ))}
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center py-40 opacity-40 text-center space-y-10">
-                  <motion.div 
-                    animate={{ 
-                      y: [0, -20, 0],
-                      scale: [1, 1.1, 1]
-                    }} 
-                    transition={{ duration: 4, repeat: Infinity }}
-                    className="p-16 rounded-full border border-dashed border-black/20"
-                  >
-                    <Calendar size={96} style={{ color: theme.text }} />
-                  </motion.div>
-                  <div className="space-y-4">
-                    <h3 className="text-4xl font-black tracking-tighter">اليوم لا توجد حصص مجدولة</h3>
-                    <p className="text-lg font-bold">يمكنك معاينة توزيع الحصص أو الانتقال ليوم دراسي قادم</p>
+                <div className="flex flex-col items-center justify-center py-32 opacity-50 text-center space-y-6">
+                  <div className="bg-white/5 p-10 rounded-full border border-white/5 animate-bounce"><Calendar size={64} className="text-slate-600" /></div>
+                  <div className="space-y-2">
+                    <h3 className="text-2xl font-black text-white">لا توجد حصص مجدولة لهذا اليوم</h3>
+                    <p className="text-sm text-slate-400">يبدو أنه يوم عطلة أو لم يتم اختيار تاريخ دراسي بعد.</p>
                   </div>
                   <motion.button 
-                    whileHover={{ scale: 1.05, boxShadow: `0 20px 40px ${theme.primary}44` }} 
+                    whileHover={{ scale: 1.05 }} 
                     whileTap={{ scale: 0.95 }} 
-                    onClick={() => {
-                      const d = new Date(targetDate);
-                      d.setDate(d.getDate() + 1);
-                      setTargetDate(d.toISOString().split('T')[0]);
-                    }} 
-                    className="flex items-center gap-4 text-white px-12 py-5 rounded-[2rem] font-black text-lg transition-all"
-                    style={{ backgroundColor: theme.primary }}
+                    onClick={goToNextDay} 
+                    className="flex items-center gap-2 text-white px-8 py-4 rounded-2xl font-bold shadow-2xl transition-all"
+                    style={{ backgroundColor: currentTheme.primary, boxShadow: `0 20px 40px ${currentTheme.primary}44` }}
                   >
-                    استكشاف اليوم التالي
-                    <ChevronRight size={24} />
+                    انتقل لليوم التالي <ChevronRight size={20} />
                   </motion.button>
                 </div>
               )}
@@ -616,11 +462,10 @@ export default function App() {
         </AnimatePresence>
       </main>
 
-      {/* شريط التنقل السفلي للهواتف */}
-      <nav className={`md:hidden fixed bottom-0 left-0 w-full p-6 flex justify-around items-center z-[100] backdrop-blur-2xl border-t ${theme.isDark ? 'bg-slate-900/80 border-white/10' : 'bg-white/80 border-black/5 shadow-2xl'}`}>
-        <button onClick={() => setActiveView('record')} className={`flex flex-col items-center gap-2 transition-all ${activeView === 'record' ? 'scale-110' : 'opacity-40'}`} style={{ color: activeView === 'record' ? theme.primary : theme.text }}><LayoutDashboard size={24} /><span className="text-[10px] font-black uppercase">الجدول</span></button>
-        <button onClick={() => setActiveView('distribution')} className={`flex flex-col items-center gap-2 transition-all ${activeView === 'distribution' ? 'scale-110' : 'opacity-40'}`} style={{ color: activeView === 'distribution' ? theme.primary : theme.text }}><List size={24} /><span className="text-[10px] font-black uppercase">الخطة</span></button>
-        <button onClick={() => setActiveView('settings')} className={`flex flex-col items-center gap-2 transition-all ${activeView === 'settings' ? 'scale-110' : 'opacity-40'}`} style={{ color: activeView === 'settings' ? theme.primary : theme.text }}><SettingsIcon size={24} /><span className="text-[10px] font-black uppercase">الإعدادات</span></button>
+      <nav className="md:hidden fixed bottom-0 left-0 w-full glass-effect border-t border-white/20 px-10 py-5 flex justify-around items-center z-50">
+        <button onClick={() => setActiveView('record')} className={`flex flex-col items-center gap-2 ${activeView === 'record' ? '' : 'text-slate-500'}`} style={{ color: activeView === 'record' ? currentTheme.primary : '' }}><LayoutDashboard size={24} /><span className="text-[10px] font-black uppercase">الجدول</span></button>
+        <button onClick={() => setActiveView('distribution')} className={`flex flex-col items-center gap-2 ${activeView === 'distribution' ? '' : 'text-slate-500'}`} style={{ color: activeView === 'distribution' ? currentTheme.primary : '' }}><List size={24} /><span className="text-[10px] font-black uppercase">الخطة</span></button>
+        <button onClick={() => setActiveView('settings')} className={`flex flex-col items-center gap-2 ${activeView === 'settings' ? '' : 'text-slate-500'}`} style={{ color: activeView === 'settings' ? currentTheme.primary : '' }}><SettingsIcon size={24} /><span className="text-[10px] font-black uppercase">الإعدادات</span></button>
       </nav>
 
     </div>
