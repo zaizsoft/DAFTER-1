@@ -17,10 +17,12 @@ import {
   Plus,
   X,
   Target,
-  BookOpen
+  BookOpen,
+  Filter,
+  List
 } from 'lucide-react';
-import { DailyRecordRow, TeacherInfo } from './types';
-import { WEEKLY_SCHEDULE, FIELD_NAME } from './constants';
+import { DailyRecordRow, TeacherInfo, WeeklySlot } from './types';
+import { WEEKLY_SCHEDULE, FIELD_NAME, ALL_LESSONS } from './constants';
 import { formatDate, getDayName, getLessonForSlot } from './utils';
 
 // --- Animated UI Components ---
@@ -66,7 +68,7 @@ const ModernField = ({ label, icon: Icon, value, onChange, type = "text" }: { la
   </div>
 );
 
-// --- Real-time Clock Component (24-hour format) ---
+// --- Real-time Clock Component (Strict 24-hour format) ---
 const LiveDigitalClock = () => {
   const [time, setTime] = useState(new Date());
 
@@ -88,9 +90,11 @@ const LiveDigitalClock = () => {
 // --- Main Application ---
 
 export default function App() {
-  const [activeView, setActiveView] = useState<'record' | 'settings'>('record');
+  const [activeView, setActiveView] = useState<'record' | 'settings' | 'distribution'>('record');
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRow, setSelectedRow] = useState<DailyRecordRow | null>(null);
+  const [gradeFilter, setGradeFilter] = useState<string>('all');
+  
   const [semesterStart, setSemesterStart] = useState<string>(() => {
     const saved = localStorage.getItem('semester_start');
     return saved || new Date().toISOString().split('T')[0];
@@ -121,7 +125,7 @@ export default function App() {
     localStorage.setItem('teacher_info', JSON.stringify(teacherInfo));
   }, [teacherInfo]);
 
-  // Format time as "START - END" (24h)
+  // Format time as "HH:mm - HH:mm" (24h)
   const formatDisplayTime = (timeRange: string) => {
     const parts = timeRange.split('/');
     if (parts.length === 2) {
@@ -154,6 +158,13 @@ export default function App() {
       };
     });
   }, [targetDate, semesterStart]);
+
+  // Logic for Weekly Distribution display
+  const distributionSlots = useMemo(() => {
+    return WEEKLY_SCHEDULE
+      .filter(s => gradeFilter === 'all' || s.grade === gradeFilter)
+      .sort((a, b) => a.dayIndex - b.dayIndex || a.time.localeCompare(b.time));
+  }, [gradeFilter]);
 
   if (isLoading) {
     return (
@@ -259,6 +270,12 @@ export default function App() {
             onClick={() => setActiveView('record')} 
           />
           <IconButton 
+            icon={List} 
+            label="التوزيع الأسبوعي" 
+            active={activeView === 'distribution'} 
+            onClick={() => setActiveView('distribution')} 
+          />
+          <IconButton 
             icon={SettingsIcon} 
             label="إعدادات الحساب" 
             active={activeView === 'settings'} 
@@ -331,6 +348,57 @@ export default function App() {
                 </div>
               </GlassPanel>
             </motion.div>
+          ) : activeView === 'distribution' ? (
+            <motion.div 
+              key="distribution-view"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              className="space-y-6"
+            >
+              <GlassPanel className="p-6">
+                <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
+                  <div className="flex items-center gap-3">
+                    <Filter className="text-blue-400" size={20} />
+                    <h3 className="text-lg font-bold text-white">توزيع الحصص الأسبوعي</h3>
+                  </div>
+                  <div className="flex gap-2 bg-white/5 p-1 rounded-xl">
+                    {['all', '1', '2', '3', '4', '5'].map(g => (
+                      <button 
+                        key={g}
+                        onClick={() => setGradeFilter(g)}
+                        className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${gradeFilter === g ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-200'}`}
+                      >
+                        {g === 'all' ? 'الكل' : `س${g}`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right border-collapse">
+                    <thead>
+                      <tr className="border-b border-white/10 text-slate-500 text-xs">
+                        <th className="py-4 px-2 font-bold">اليوم</th>
+                        <th className="py-4 px-2 font-bold">التوقيت</th>
+                        <th className="py-4 px-2 font-bold">المستوى</th>
+                        <th className="py-4 px-2 font-bold">الفوج</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {distributionSlots.map((slot, idx) => (
+                        <tr key={idx} className="border-b border-white/5 hover:bg-white/5 transition-colors text-sm">
+                          <td className="py-4 px-2 font-bold text-slate-200">{slot.dayName}</td>
+                          <td className="py-4 px-2 font-mono text-blue-400 tracking-tight">{formatDisplayTime(slot.time)}</td>
+                          <td className="py-4 px-2">السنة {slot.grade}</td>
+                          <td className="py-4 px-2 font-bold">({slot.section})</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </GlassPanel>
+            </motion.div>
           ) : (
             <motion.div 
               key="record-view"
@@ -349,7 +417,7 @@ export default function App() {
                       className="glass-effect p-5 rounded-[2rem] flex flex-col md:flex-row items-center gap-5 border-white/5 group cursor-pointer relative"
                     >
                       <div className="flex items-center gap-4 min-w-[240px] w-full md:w-auto">
-                        <div className="w-20 h-14 rounded-2xl bg-blue-600/10 flex items-center justify-center text-blue-400 font-bold text-[11px] text-center p-2 leading-tight border border-blue-500/10">
+                        <div className="w-24 h-14 rounded-2xl bg-blue-600/10 flex items-center justify-center text-blue-400 font-bold text-[11px] text-center p-2 leading-tight border border-blue-500/10">
                           {formatDisplayTime(row.time)}
                         </div>
                         <div className="flex flex-col">
@@ -399,6 +467,10 @@ export default function App() {
         <button onClick={() => setActiveView('record')} className={`flex flex-col items-center gap-1 ${activeView === 'record' ? 'text-blue-400' : 'text-slate-500'}`}>
           <LayoutDashboard size={20} />
           <span className="text-[10px] font-bold">الجدول</span>
+        </button>
+        <button onClick={() => setActiveView('distribution')} className={`flex flex-col items-center gap-1 ${activeView === 'distribution' ? 'text-blue-400' : 'text-slate-500'}`}>
+          <List size={20} />
+          <span className="text-[10px] font-bold">الخطة</span>
         </button>
         <button onClick={() => setActiveView('settings')} className={`flex flex-col items-center gap-1 ${activeView === 'settings' ? 'text-blue-400' : 'text-slate-500'}`}>
           <SettingsIcon size={20} />
