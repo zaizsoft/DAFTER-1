@@ -68,6 +68,47 @@ const ModernField = ({ label, icon: Icon, value, onChange, type = "text" }: { la
   </div>
 );
 
+// Component for Typewriter Text Effect
+const TypewriterText = ({ text, className = "", speed = 15 }: { text: string, className?: string, speed?: number }) => {
+  const [displayText, setDisplayText] = useState("");
+
+  useEffect(() => {
+    let currentText = "";
+    let currentIndex = 0;
+    setDisplayText("");
+
+    // Use a small delay before starting to feel natural
+    const startTimeout = setTimeout(() => {
+      const interval = setInterval(() => {
+        if (currentIndex < text.length) {
+          currentText += text[currentIndex];
+          setDisplayText(currentText);
+          currentIndex++;
+        } else {
+          clearInterval(interval);
+        }
+      }, speed);
+
+      return () => clearInterval(interval);
+    }, 50);
+
+    return () => clearTimeout(startTimeout);
+  }, [text, speed]);
+
+  return (
+    <span className={className}>
+      {displayText}
+      {displayText.length < text.length && (
+        <motion.span 
+          animate={{ opacity: [1, 0] }} 
+          transition={{ duration: 0.5, repeat: Infinity }}
+          className="inline-block w-1 h-4 bg-blue-400 ml-1 align-middle"
+        />
+      )}
+    </span>
+  );
+};
+
 // --- Real-time Clock Component (Strict 24-hour format) ---
 const LiveDigitalClock = () => {
   const [time, setTime] = useState(new Date());
@@ -159,7 +200,6 @@ export default function App() {
     });
   }, [targetDate, semesterStart]);
 
-  // Logic for Weekly Distribution display
   const distributionSlots = useMemo(() => {
     return WEEKLY_SCHEDULE
       .filter(s => gradeFilter === 'all' || s.grade === gradeFilter)
@@ -431,8 +471,12 @@ export default function App() {
                           <PenTool size={12} />
                           {row.field}
                         </div>
-                        <h4 className="text-md font-bold text-slate-100 line-clamp-1">{row.learnings}</h4>
-                        <p className="text-xs text-slate-400 line-clamp-1">{row.content}</p>
+                        <h4 className="text-md font-bold text-slate-100 line-clamp-1">
+                          <TypewriterText text={row.learnings} />
+                        </h4>
+                        <div className="text-xs text-slate-400 line-clamp-1">
+                          <TypewriterText text={row.content} speed={10} />
+                        </div>
                       </div>
 
                       <div className="hidden lg:flex items-center">
