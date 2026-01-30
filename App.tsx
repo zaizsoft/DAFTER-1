@@ -77,7 +77,6 @@ const TypewriterText = ({ text, className = "", speed = 15 }: { text: string, cl
     let currentIndex = 0;
     setDisplayText("");
 
-    // Use a small delay before starting to feel natural
     const startTimeout = setTimeout(() => {
       const interval = setInterval(() => {
         if (currentIndex < text.length) {
@@ -106,6 +105,32 @@ const TypewriterText = ({ text, className = "", speed = 15 }: { text: string, cl
         />
       )}
     </span>
+  );
+};
+
+// Component for Pulsating/Glowing Text Effect for the "Field" label
+const PulsatingText = ({ text, className = "" }: { text: string, className?: string }) => {
+  return (
+    <motion.span
+      key={text}
+      initial={{ opacity: 0.8, filter: 'drop-shadow(0 0 0px rgba(37, 99, 235, 0))' }}
+      animate={{ 
+        opacity: [0.8, 1, 0.8],
+        filter: [
+          'drop-shadow(0 0 0px rgba(37, 99, 235, 0))',
+          'drop-shadow(0 0 4px rgba(37, 99, 235, 0.6))',
+          'drop-shadow(0 0 0px rgba(37, 99, 235, 0))'
+        ]
+      }}
+      transition={{ 
+        duration: 2, 
+        repeat: 3, 
+        ease: "easeInOut" 
+      }}
+      className={className}
+    >
+      {text}
+    </motion.span>
   );
 };
 
@@ -469,7 +494,7 @@ export default function App() {
                       <div className="flex-1 w-full text-right md:text-right space-y-1">
                         <div className="flex items-center gap-1.5 text-blue-400 font-bold text-[10px] justify-end md:justify-start">
                           <PenTool size={12} />
-                          {row.field}
+                          <PulsatingText text={row.field} />
                         </div>
                         <h4 className="text-md font-bold text-slate-100 line-clamp-1">
                           <TypewriterText text={row.learnings} />
