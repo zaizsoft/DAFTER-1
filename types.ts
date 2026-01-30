@@ -4,14 +4,16 @@ export interface Lesson {
   topic: string;
   knowledgeResource: string;
   content: string;
+  teachingSituation?: string;
+  tools?: string;
 }
 
 export interface WeeklySlot {
-  dayName: string; // "الأحد", "الاثنين", etc.
-  dayIndex: number; // 0 (Sunday) to 4 (Thursday)
+  dayName: string;
+  dayIndex: number;
   time: string;
-  grade: string; // "1", "2", "3", "4", "5"
-  section: string; // "أ", "ب"
+  grade: string;
+  section: string;
 }
 
 export interface DailyRecordRow {
@@ -22,6 +24,8 @@ export interface DailyRecordRow {
   field: string;
   learnings: string;
   content: string;
+  teachingSituation?: string;
+  tools?: string;
   note: string;
 }
 
