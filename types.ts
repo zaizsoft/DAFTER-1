@@ -6,6 +6,7 @@ export interface Lesson {
   content: string;
   teachingSituation?: string;
   tools?: string;
+  pdfUrl?: string; // رابط ملف المذكرة الأصلية (PDF)
 }
 
 export interface WeeklySlot {
@@ -26,6 +27,7 @@ export interface DailyRecordRow {
   content: string;
   teachingSituation?: string;
   tools?: string;
+  pdfUrl?: string;
   note: string;
 }
 
