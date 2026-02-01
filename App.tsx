@@ -24,7 +24,8 @@ import {
   Palette,
   ChevronDown,
   ExternalLink,
-  FileSearch
+  FileSearch,
+  AlertCircle
 } from 'lucide-react';
 import { DailyRecordRow, TeacherInfo, WeeklySlot } from './types';
 import { WEEKLY_SCHEDULE, FIELD_NAME, ALL_LESSONS } from './constants';
@@ -72,7 +73,7 @@ const GlassPanel = ({ children, className = "" }: { children?: React.ReactNode, 
 const IconButton = ({ icon: Icon, onClick, active = false, label = "", color }: { icon: React.ElementType, onClick: () => void, active?: boolean, label?: string, color: string }) => (
   <button
     onClick={onClick}
-    className={`flex items-center gap-4 w-full p-4 rounded-xl ${
+    className={`flex items-center gap-4 w-full p-4 rounded-xl transition-colors ${
       active ? 'bg-white/10 border border-white/20' : 'text-slate-400 hover:bg-white/5'
     }`}
     style={active ? { borderColor: `${color}55`, color: color } : {}}
@@ -213,7 +214,7 @@ export default function App() {
       <nav className="hidden md:flex flex-col w-72 bg-slate-950/50 border-l border-white/10 p-6 z-50">
         <div className="flex items-center gap-4 mb-12">
           <div className="p-3 rounded-xl bg-blue-600"><LayoutDashboard className="text-white" size={24} /></div>
-          <div><h1 className="text-lg font-bold text-white">الدفتر الذكي</h1><p className="text-[9px] opacity-50 uppercase">Smart School Admin</p></div>
+          <div><h1 className="text-lg font-bold text-white">الدفتر الذكي</h1><p className="text-[9px] opacity-50 uppercase">الإصدار المستقر</p></div>
         </div>
         <div className="flex-1 space-y-2">
           <IconButton icon={FileText} label="جدول اليوم" active={activeView === 'record'} onClick={() => setActiveView('record')} color={currentTheme.primary} />
@@ -221,7 +222,10 @@ export default function App() {
           <IconButton icon={SettingsIcon} label="الإعدادات" active={activeView === 'settings'} onClick={() => setActiveView('settings')} color={currentTheme.primary} />
         </div>
         <div className="mt-auto pt-6 border-t border-white/10">
-          <div className="p-4 bg-white/5 rounded-xl text-center"><p className="text-[10px] text-slate-500 mb-1">الجمهورية الجزائرية</p><p className="text-xs font-bold">وزارة التربية الوطنية</p></div>
+          <div className="p-4 bg-white/5 rounded-xl text-center">
+            <p className="text-[10px] text-slate-500 mb-1">الجمهورية الجزائرية</p>
+            <p className="text-xs font-bold">وزارة التربية الوطنية</p>
+          </div>
         </div>
       </nav>
 
@@ -233,7 +237,7 @@ export default function App() {
               <User size={24} style={{ color: currentTheme.primary }} />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">الأستاذ: {teacherInfo.name}</h2>
+              <h2 className="text-xl font-bold text-white">{teacherInfo.name}</h2>
               <p className="text-slate-400 text-xs">{teacherInfo.school}</p>
             </div>
           </div>
@@ -325,18 +329,18 @@ export default function App() {
                     </div>
                     <div className="flex-1 text-right">
                       <div className="text-[9px] font-bold text-slate-500 uppercase flex items-center gap-1 mb-1">
-                        <PenTool size={10} /> {row.field} | السنة {row.gradeSection}
+                        <PenTool size={10} /> {row.field} | المستوى: السنة {row.gradeSection}
                       </div>
-                      <h4 className="text-lg font-bold text-white">{row.learnings}</h4>
-                      <p className="text-xs text-slate-400 line-clamp-1">{row.content}</p>
+                      <h4 className="text-lg font-bold text-white">{row.topic || row.learnings}</h4>
+                      <p className="text-xs text-slate-400 line-clamp-1">{row.learnings}</p>
                     </div>
-                    <ChevronDown size={20} className={`text-slate-500 transition-transform ${expandedRowIndex === idx ? 'rotate-180' : ''}`} />
+                    <ChevronDown size={20} className={`text-slate-500 ${expandedRowIndex === idx ? 'rotate-180' : ''}`} />
                   </div>
                   {expandedRowIndex === idx && (
                     <div className="bg-white/[0.03] border-t border-white/10 p-6 space-y-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="p-4 bg-slate-900/50 rounded-xl border border-white/5">
-                          <span className="text-[10px] text-blue-400 font-bold block mb-1">المورد المعرفي</span>
+                          <span className="text-[10px] text-blue-400 font-bold block mb-1">المورد المعرفي المبرمج</span>
                           <p className="text-sm font-bold">{row.learnings}</p>
                         </div>
                         <div className="p-4 bg-slate-900/50 rounded-xl border border-white/5">
@@ -344,9 +348,13 @@ export default function App() {
                           <p className="text-sm">{row.content}</p>
                         </div>
                       </div>
+                      <div className="p-4 bg-emerald-950/20 border border-emerald-500/20 rounded-xl">
+                        <span className="text-[10px] text-emerald-400 font-bold block mb-1">شرح الموقف التعليمي</span>
+                        <p className="text-sm leading-relaxed">{row.teachingSituation || "يتم اتباع التدرج السنوي للمكتسبات."}</p>
+                      </div>
                       <button 
-                        onClick={() => setSelectedRow(row)}
-                        className="w-full py-4 bg-blue-600 hover:bg-blue-700 rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2"
+                        onClick={() => { setSelectedRow(row); setViewPdf(false); }}
+                        className="w-full py-4 bg-blue-600 hover:bg-blue-700 rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2 transition-colors"
                       >
                         فتح البطاقة الكاملة (المذكرة الأصلية) <ExternalLink size={16} />
                       </button>
@@ -372,29 +380,29 @@ export default function App() {
         <button onClick={() => setActiveView('settings')} className={`flex flex-col items-center gap-1 ${activeView === 'settings' ? 'text-blue-500' : 'text-slate-500'}`}><SettingsIcon size={20} /><span className="text-[9px] font-bold">الإعدادات</span></button>
       </nav>
 
-      {/* Full Record Modal - PDF Viewer */}
+      {/* Full Record Modal - Detailed Memo View */}
       {selectedRow && (
         <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col">
           <header className="p-4 border-b border-white/10 flex justify-between items-center bg-slate-900">
              <div className="flex items-center gap-4">
                 <button onClick={() => setSelectedRow(null)} className="p-2 hover:bg-white/10 rounded-lg text-slate-400"><X size={24} /></button>
-                <div>
+                <div className="text-right">
                    <h3 className="text-sm font-bold">المذكرة الأصلية: {selectedRow.learnings}</h3>
-                   <p className="text-[10px] text-slate-500">السنة {selectedRow.gradeSection} | {selectedRow.time}</p>
+                   <p className="text-[10px] text-slate-500">السنة {selectedRow.gradeSection} | التوقيت: {selectedRow.time}</p>
                 </div>
              </div>
              <div className="flex gap-2">
                 <button 
-                  onClick={() => setViewPdf(!viewPdf)} 
-                  className={`px-4 py-2 rounded-lg text-[10px] font-bold flex items-center gap-2 ${!viewPdf ? 'bg-blue-600' : 'bg-slate-700'}`}
+                   onClick={() => setViewPdf(false)} 
+                   className={`px-4 py-2 rounded-lg text-[10px] font-bold flex items-center gap-2 ${!viewPdf ? 'bg-blue-600' : 'bg-slate-700'}`}
                 >
-                  <FileText size={14} /> تفاصيل البطاقة
+                  <FileText size={14} /> تفاصيل البيانات
                 </button>
                 <button 
-                   onClick={() => setViewPdf(!viewPdf)} 
+                   onClick={() => setViewPdf(true)} 
                    className={`px-4 py-2 rounded-lg text-[10px] font-bold flex items-center gap-2 ${viewPdf ? 'bg-blue-600' : 'bg-slate-700'}`}
                 >
-                  <FileSearch size={14} /> عرض المذكرة الأصلية
+                  <FileSearch size={14} /> نسخة PDF
                 </button>
              </div>
           </header>
@@ -402,39 +410,73 @@ export default function App() {
           <main className="flex-1 bg-slate-900 overflow-y-auto">
              {viewPdf ? (
                <div className="w-full h-full flex flex-col items-center justify-center p-4">
-                  {selectedRow.pdfUrl ? (
+                  {(selectedRow.pdfUrl && selectedRow.pdfUrl !== "#") ? (
                     <iframe 
                       src={`${selectedRow.pdfUrl}#toolbar=0`} 
-                      className="w-full h-full border-none max-w-5xl rounded-lg shadow-2xl"
+                      className="w-full h-full border-none max-w-5xl rounded-lg shadow-2xl bg-white"
                       title="PDF Viewer"
                     />
                   ) : (
-                    <div className="text-center space-y-4 opacity-50">
-                       <FileSearch size={64} className="mx-auto" />
-                       <p className="text-lg font-bold">عذراً، لم يتم ربط ملف PDF لهذه المذكرة بعد.</p>
-                       <p className="text-sm">سيتم عرض المذكرة الأصلية بمجرد توفر الملف.</p>
-                       <button onClick={() => setViewPdf(false)} className="px-6 py-2 bg-white/10 rounded-lg text-xs font-bold">العودة لعرض البيانات</button>
+                    <div className="text-center space-y-6 max-w-md">
+                       <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto border border-white/10">
+                          <AlertCircle size={40} className="text-blue-500" />
+                       </div>
+                       <div className="space-y-2">
+                          <p className="text-lg font-bold text-white">لم يتم ربط ملف PDF بعد</p>
+                          <p className="text-sm text-slate-400 leading-relaxed">
+                             يمكنك الاعتماد حالياً على "تفاصيل البيانات" حيث تم إدراج كافة المعلومات حرفياً من المذكرة الأصلية.
+                          </p>
+                       </div>
+                       <button onClick={() => setViewPdf(false)} className="px-6 py-3 bg-blue-600 rounded-xl text-xs font-bold text-white w-full">العودة لتفاصيل المذكرة</button>
                     </div>
                   )}
                </div>
              ) : (
-               <div className="max-w-4xl mx-auto p-10 space-y-12 text-right">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                     <div className="space-y-2">
-                        <span className="text-xs font-bold text-blue-400">المورد المعرفي المبرمج</span>
-                        <div className="p-6 bg-white/5 border border-white/10 rounded-2xl text-xl font-bold">{selectedRow.learnings}</div>
+               <div className="max-w-5xl mx-auto p-6 md:p-12 space-y-8 text-right">
+                  {/* Header Style Memo */}
+                  <div className="bg-white text-slate-900 p-8 rounded-sm shadow-2xl border-t-8 border-blue-600 space-y-10">
+                     <div className="flex justify-between items-start border-b border-slate-200 pb-6">
+                        <div className="text-xs space-y-1 font-bold">
+                           <p>الميدان: {selectedRow.field}</p>
+                           <p>المستوى: السنة {selectedRow.gradeSection}</p>
+                           <p>التاريخ: {selectedRow.date}</p>
+                        </div>
+                        <div className="text-center">
+                           <h2 className="text-2xl font-black underline decoration-blue-600 decoration-4 underline-offset-8">مذكرة الحصة التعليمية</h2>
+                        </div>
+                        <div className="text-xs space-y-1 font-bold text-left">
+                           <p>المؤسسة: {teacherInfo.school}</p>
+                           <p>الأستاذ: {teacherInfo.name}</p>
+                        </div>
                      </div>
-                     <div className="space-y-2">
-                        <span className="text-xs font-bold text-teal-400">محتوى التعلم</span>
-                        <div className="p-6 bg-white/5 border border-white/10 rounded-2xl text-xl font-bold">{selectedRow.content}</div>
+
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div className="space-y-3">
+                           <h4 className="text-sm font-black text-blue-700 flex items-center gap-2"><Target size={16} /> المورد المعرفي المبرمج:</h4>
+                           <p className="text-lg leading-relaxed bg-slate-50 p-4 border-r-4 border-blue-600 rounded-sm">{selectedRow.learnings}</p>
+                        </div>
+                        <div className="space-y-3">
+                           <h4 className="text-sm font-black text-teal-700 flex items-center gap-2"><BookOpen size={16} /> محتوى التعلم:</h4>
+                           <p className="text-lg leading-relaxed bg-slate-50 p-4 border-r-4 border-teal-600 rounded-sm">{selectedRow.content}</p>
+                        </div>
                      </div>
-                     <div className="md:col-span-2 space-y-2">
-                        <span className="text-xs font-bold text-emerald-400">توجيهات الموقف التعليمي</span>
-                        <div className="p-8 bg-emerald-950/20 border border-emerald-500/20 rounded-2xl text-lg leading-relaxed">{selectedRow.teachingSituation || "يتم اتباع التدرج السنوي للمكتسبات."}</div>
+
+                     <div className="space-y-4">
+                        <h4 className="text-sm font-black text-emerald-700 flex items-center gap-2"><Activity size={16} /> محتوى الإنجاز (المواقف التعليمية):</h4>
+                        <div className="bg-emerald-50 p-6 border-r-4 border-emerald-600 rounded-sm">
+                           <p className="text-lg leading-loose whitespace-pre-wrap">{selectedRow.teachingSituation}</p>
+                        </div>
                      </div>
-                     <div className="md:col-span-2 space-y-2">
-                        <span className="text-xs font-bold text-amber-400">الوسائل البيداغوجية المستعملة</span>
-                        <div className="p-6 bg-amber-950/20 border border-amber-500/20 rounded-2xl text-lg font-bold italic">{selectedRow.tools || "أقماع، كرات، حلقات."}</div>
+
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10 border-t border-slate-100 pt-8">
+                        <div className="space-y-3">
+                           <h4 className="text-sm font-black text-amber-700 flex items-center gap-2"><Wrench size={16} /> الوسائل البيداغوجية:</h4>
+                           <p className="text-md font-bold italic text-slate-700">{selectedRow.tools || "سلم، أقماع، صحون، كرات."}</p>
+                        </div>
+                        <div className="space-y-3">
+                           <h4 className="text-sm font-black text-slate-500 flex items-center gap-2"><PenTool size={16} /> ملاحظات بيداغوجية:</h4>
+                           <p className="text-md font-bold text-slate-400 italic">يتم التركيز على تحقيق مركبات الكفاءة الختامية.</p>
+                        </div>
                      </div>
                   </div>
                </div>
