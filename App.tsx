@@ -331,8 +331,12 @@ export default function App() {
                       <div className="text-[9px] font-bold text-slate-500 uppercase flex items-center gap-1 mb-1">
                         <PenTool size={10} /> {row.field} | المستوى: السنة {row.gradeSection}
                       </div>
-                      <h4 className="text-lg font-bold text-white">{row.topic || row.learnings}</h4>
-                      <p className="text-xs text-slate-400 line-clamp-1">{row.learnings}</p>
+                      <h4 className="text-lg font-bold text-white">{row.learnings}</h4>
+                      {/* محتوى التعلم بارز تحت المورد المعرفي مباشرة */}
+                      <div className="mt-2 flex items-start gap-2">
+                        <BookOpen size={12} className="mt-1 text-teal-400 shrink-0" />
+                        <p className="text-sm font-semibold text-teal-100/90 leading-snug">{row.content}</p>
+                      </div>
                     </div>
                     <ChevronDown size={20} className={`text-slate-500 ${expandedRowIndex === idx ? 'rotate-180' : ''}`} />
                   </div>
@@ -345,7 +349,7 @@ export default function App() {
                         </div>
                         <div className="p-4 bg-slate-900/50 rounded-xl border border-white/5">
                           <span className="text-[10px] text-teal-400 font-bold block mb-1">محتوى التعلم</span>
-                          <p className="text-sm">{row.content}</p>
+                          <p className="text-sm font-bold text-teal-50">{row.content}</p>
                         </div>
                       </div>
                       <div className="p-4 bg-emerald-950/20 border border-emerald-500/20 rounded-xl">
