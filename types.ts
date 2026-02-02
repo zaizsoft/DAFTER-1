@@ -37,3 +37,13 @@ export interface TeacherInfo {
   inspector: string;
   manager: string;
 }
+
+export type PostponeReason = 'half_day' | 'arbitration' | 'competition' | 'other';
+
+export interface PostponedSession {
+  key: string; // date_grade_section_time
+  date: string;
+  gradeSection: string;
+  reason: string;
+  reasonType: PostponeReason;
+}
