@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   User, 
   School, 
@@ -26,7 +26,11 @@ import {
   XCircle,
   MessageSquare,
   History,
-  ClipboardList
+  ClipboardList,
+  Download,
+  Upload,
+  RefreshCw,
+  Database
 } from 'lucide-react';
 import { DailyRecordRow, TeacherInfo, WeeklySlot, PostponeReason, PostponedSession } from './types';
 import { WEEKLY_SCHEDULE, FIELD_NAME, ALL_LESSONS } from './constants';
@@ -48,7 +52,7 @@ const REASONS_MAP: Record<PostponeReason, string> = {
 
 type ThemeKey = keyof typeof THEMES;
 
-// Fix: Expanded GlassPanel props type to include 'key' so TypeScript doesn't complain when it's passed in a .map() function.
+// Updated GlassPanel to explicitly include key in its props type to resolve TypeScript error when used in loops
 const GlassPanel = ({ children, className = "" }: { children?: React.ReactNode, className?: string, key?: React.Key }) => (
   <div className={`bg-white/5 border border-white/10 rounded-[2rem] p-6 ${className}`}>{children}</div>
 );
@@ -81,8 +85,8 @@ export default function App() {
   const [expandedRowIndex, setExpandedRowIndex] = useState<number | null>(null);
   const [selectedRow, setSelectedRow] = useState<DailyRecordRow | null>(null);
   const [viewPdf, setViewPdf] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // سبب التأجيل الحالي الذي يتم اختياره
   const [postponeModalRow, setPostponeModalRow] = useState<DailyRecordRow | null>(null);
   const [tempReasonType, setTempReasonType] = useState<PostponeReason>('half_day');
   const [tempOtherText, setTempOtherText] = useState('');
@@ -145,10 +149,55 @@ export default function App() {
     });
   }, [targetDate, semesterStart, meetingsState]);
 
+  const handleBackup = () => {
+    const backupData = {
+      version: "1.0",
+      teacherInfo,
+      meetingsState,
+      postponedSessions,
+      semesterStart,
+      appTheme: themeKey,
+      backupDate: new Date().toLocaleString('ar-DZ')
+    };
+    
+    const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `SmartRecord_Backup_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleRestore = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target?.result as string);
+        
+        // التحقق من صحة البيانات وتحديثها
+        if (data.teacherInfo) setTeacherInfo(data.teacherInfo);
+        if (data.meetingsState) setMeetingsState(data.meetingsState);
+        if (data.postponedSessions) setPostponedSessions(data.postponedSessions);
+        if (data.semesterStart) setSemesterStart(data.semesterStart);
+        if (data.appTheme) setThemeKey(data.appTheme);
+
+        alert('تم استرجاع كافة الملاحظات والبيانات بنجاح!');
+      } catch (err) {
+        alert('حدث خطأ في قراءة ملف النسخة الاحتياطية. يرجى التأكد من اختيار ملف صحيح.');
+      }
+    };
+    reader.readAsText(file);
+    // تفريغ المدخل للسماح برفع نفس الملف مرة أخرى إذا لزم الأمر
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const handlePostponeClick = (row: DailyRecordRow) => {
     const key = `${row.date}_${row.gradeSection.replace(' (', '_').replace(')', '')}_${row.time}`;
     if (meetingsState[key] === 'incomplete') {
-      // إذا كانت بالفعل مؤجلة، نقوم بإلغاء التأجيل
       setMeetingsState(prev => {
         const next = { ...prev };
         delete next[key];
@@ -156,7 +205,6 @@ export default function App() {
       });
       setPostponedSessions(prev => prev.filter(s => s.key !== key));
     } else {
-      // إظهار نافذة اختيار السبب
       setPostponeModalRow(row);
       setTempReasonType('half_day');
       setTempOtherText('');
@@ -194,7 +242,7 @@ export default function App() {
       {/* Sidebar */}
       <nav className="hidden md:flex flex-col w-72 bg-slate-950/50 border-l border-white/10 p-6 z-50">
         <div className="flex items-center gap-4 mb-12">
-          <div className="p-3 rounded-xl bg-blue-600"><LayoutDashboard className="text-white" size={24} /></div>
+          <div className="p-3 rounded-xl bg-blue-600 shadow-lg shadow-blue-600/20"><LayoutDashboard className="text-white" size={24} /></div>
           <div><h1 className="text-lg font-bold text-white">الدفتر الذكي</h1><p className="text-[9px] opacity-50 uppercase">نظام إدارة التربية البدنية</p></div>
         </div>
         <div className="flex-1 space-y-2">
@@ -218,15 +266,14 @@ export default function App() {
             </div>
           </div>
           
-          {/* Day Navigation (only in record view) */}
           {activeView === 'record' && (
             <div className="flex items-center gap-4 bg-white/5 p-2 rounded-2xl border border-white/10">
-              <button onClick={() => changeDay(-1)} className="p-2 hover:bg-white/10 rounded-xl transition-colors text-slate-400" title="اليوم السابق"><ChevronRight size={24} /></button>
+              <button onClick={() => changeDay(-1)} className="p-2 hover:bg-white/10 rounded-xl transition-colors text-slate-400"><ChevronRight size={24} /></button>
               <div className="text-center min-w-[150px]">
                 <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">{getDayName(new Date(targetDate))}</p>
                 <p className="text-sm font-bold">{formatDate(new Date(targetDate))}</p>
               </div>
-              <button onClick={() => changeDay(1)} className="p-2 hover:bg-white/10 rounded-xl transition-colors text-slate-400" title="اليوم التالي"><ChevronLeft size={24} /></button>
+              <button onClick={() => changeDay(1)} className="p-2 hover:bg-white/10 rounded-xl transition-colors text-slate-400"><ChevronLeft size={24} /></button>
             </div>
           )}
         </header>
@@ -234,13 +281,45 @@ export default function App() {
         <div>
           {activeView === 'settings' ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* إعدادات البيانات - Backup & Restore */}
               <GlassPanel className="p-8 space-y-6">
-                <h3 className="text-lg font-bold flex items-center gap-2"><SettingsIcon size={20} /> الإعدادات العامة</h3>
+                <h3 className="text-lg font-bold flex items-center gap-2 text-teal-400"><Database size={20} /> إدارة البيانات والنسخ الاحتياطي</h3>
+                <div className="space-y-4">
+                  <p className="text-xs text-slate-400 leading-relaxed">احتفظ بنسخة شاملة من مذكراتك وملاحظاتك المهنية لاستعادتها لاحقاً.</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <button 
+                      onClick={handleBackup}
+                      className="flex items-center justify-center gap-3 py-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-blue-600/20 hover:border-blue-500/50 transition-all group"
+                    >
+                      <Download size={18} className="text-blue-400 group-hover:scale-110 transition-transform" />
+                      <span className="text-xs font-bold">نسخ احتياطي</span>
+                    </button>
+                    <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center justify-center gap-3 py-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-teal-600/20 hover:border-teal-500/50 transition-all group"
+                    >
+                      <Upload size={18} className="text-teal-400 group-hover:scale-110 transition-transform" />
+                      <span className="text-xs font-bold">استرجاع النسخة</span>
+                    </button>
+                    <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      onChange={handleRestore} 
+                      className="hidden" 
+                      accept=".json"
+                    />
+                  </div>
+                </div>
+              </GlassPanel>
+
+              <GlassPanel className="p-8 space-y-6">
+                <h3 className="text-lg font-bold flex items-center gap-2"><SettingsIcon size={20} /> الإعدادات الزمنية</h3>
                 <div className="space-y-4">
                   <ModernField label="تاريخ بداية الفصل" type="date" icon={Calendar} value={semesterStart} onChange={setSemesterStart} color={currentTheme.primary} />
                   <ModernField label="تاريخ معاينة الدفتر" type="date" icon={Clock} value={targetDate} onChange={setTargetDate} color={currentTheme.primary} />
                 </div>
               </GlassPanel>
+
               <GlassPanel className="p-8 space-y-6 lg:col-span-2">
                 <h3 className="text-lg font-bold flex items-center gap-2"><User size={20} /> المعلومات المهنية</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -263,7 +342,7 @@ export default function App() {
               {postponedSessions.length > 0 ? (
                 <div className="grid grid-cols-1 gap-4">
                   {postponedSessions.map((ps, idx) => (
-                    <GlassPanel key={idx} className="flex flex-col md:flex-row items-center gap-6 border-r-4 border-r-red-500">
+                    <GlassPanel key={idx} className="flex flex-col md:flex-row items-center gap-6 border-r-4 border-r-red-500 hover:bg-white/[0.07] transition-colors">
                       <div className="flex-1 text-right">
                         <div className="flex items-center gap-2 text-[10px] font-black text-slate-500 mb-1">
                           <Calendar size={12} /> {ps.date} | <School size={12} /> القسم: {ps.gradeSection}
@@ -292,7 +371,7 @@ export default function App() {
                    <tbody>
                      {WEEKLY_SCHEDULE.map((slot, i) => (
                        <tr key={i} className="border-b border-white/5 hover:bg-white/5">
-                         <td className="py-4">{slot.dayName}</td>
+                         <td className="py-4 font-bold">{slot.dayName}</td>
                          <td className="font-mono text-blue-400">{slot.time}</td>
                          <td>السنة {slot.grade} ابتدائي</td>
                          <td>({slot.section})</td>
@@ -317,7 +396,6 @@ export default function App() {
                       </div>
                       <h4 className="text-lg font-bold text-white">{row.learnings}</h4>
                       
-                      {/* محتوى التعلم بارز تحت العنوان */}
                       <div className="mt-3 p-3 bg-teal-500/10 border-r-2 border-teal-500 rounded-lg">
                         <div className="flex items-center gap-2 mb-1">
                           <BookOpen size={14} className="text-teal-400" />
@@ -326,7 +404,6 @@ export default function App() {
                         <p className="text-sm font-semibold text-teal-50/90 leading-relaxed">{row.content}</p>
                       </div>
 
-                      {/* ملصق الحصة غير المكتملة وسببها */}
                       {row.isIncomplete && (
                         <div className="mt-3 flex flex-wrap gap-2">
                           <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-600 text-white rounded-lg shadow-lg text-xs font-bold animate-pulse">
@@ -345,7 +422,6 @@ export default function App() {
                        <button 
                         onClick={() => handlePostponeClick(row)}
                         className={`p-4 rounded-xl border transition-all flex flex-col items-center gap-1 ${row.isIncomplete ? 'bg-red-600 border-red-600 text-white shadow-lg shadow-red-600/20' : 'bg-white/5 border-white/10 text-slate-500 hover:text-green-500'}`}
-                        title={row.isIncomplete ? "سحب حالة عدم الإتمام" : "تأجيل الحصة وتحديد السبب"}
                        >
                          {row.isIncomplete ? <XCircle size={24} /> : <CheckCircle size={24} />}
                          <span className="text-[8px] font-bold uppercase">{row.isIncomplete ? 'مؤجلة' : 'تمت'}</span>
@@ -368,7 +444,7 @@ export default function App() {
                       </div>
                       <button 
                         onClick={() => { setSelectedRow(row); setViewPdf(false); }}
-                        className="w-full py-4 bg-blue-600 hover:bg-blue-700 rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2 transition-colors"
+                        className="w-full py-4 bg-blue-600 hover:bg-blue-700 rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2 transition-colors shadow-lg shadow-blue-600/20"
                       >
                         فتح البطاقة الكاملة <ExternalLink size={16} />
                       </button>
@@ -388,11 +464,9 @@ export default function App() {
       </main>
 
       {/* Mobile Nav */}
-      <nav className="md:hidden fixed bottom-0 left-0 w-full bg-slate-950 border-t border-white/10 px-8 py-4 flex justify-around items-center z-50">
+      <nav className="md:hidden fixed bottom-0 left-0 w-full bg-slate-950/90 backdrop-blur-md border-t border-white/10 px-8 py-4 flex justify-around items-center z-50">
         <button onClick={() => setActiveView('record')} className={`flex flex-col items-center gap-1 ${activeView === 'record' ? 'text-blue-500' : 'text-slate-500'}`}><LayoutDashboard size={20} /><span className="text-[9px] font-bold">الجدول</span></button>
         <button onClick={() => setActiveView('notes')} className={`flex flex-col items-center gap-1 ${activeView === 'notes' ? 'text-blue-500' : 'text-slate-500'}`}><MessageSquare size={20} /><span className="text-[9px] font-bold">ملاحظات</span></button>
-        <button onClick={() => changeDay(-1)} className="text-slate-500"><ChevronRight size={24} /></button>
-        <button onClick={() => changeDay(1)} className="text-slate-500"><ChevronLeft size={24} /></button>
         <button onClick={() => setActiveView('settings')} className={`flex flex-col items-center gap-1 ${activeView === 'settings' ? 'text-blue-500' : 'text-slate-500'}`}><SettingsIcon size={20} /><span className="text-[9px] font-bold">إعدادات</span></button>
       </nav>
 
@@ -411,7 +485,7 @@ export default function App() {
                   <button 
                     key={r}
                     onClick={() => setTempReasonType(r)}
-                    className={`w-full p-4 rounded-xl text-sm font-bold border transition-all text-right flex items-center justify-between ${tempReasonType === r ? 'bg-blue-600 border-blue-500' : 'bg-white/5 border-white/5 hover:border-white/20'}`}
+                    className={`w-full p-4 rounded-xl text-sm font-bold border transition-all text-right flex items-center justify-between ${tempReasonType === r ? 'bg-blue-600 border-blue-500 shadow-lg shadow-blue-600/20' : 'bg-white/5 border-white/5 hover:border-white/20'}`}
                   >
                     <span>{REASONS_MAP[r]}</span>
                     {tempReasonType === r && <CheckCircle size={18} />}
@@ -426,7 +500,7 @@ export default function App() {
               )}
 
               <div className="flex gap-4 mt-8">
-                 <button onClick={confirmPostpone} className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 rounded-xl font-bold text-sm uppercase">تأكيد التأجيل</button>
+                 <button onClick={confirmPostpone} className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 rounded-xl font-bold text-sm uppercase shadow-lg shadow-blue-600/30">تأكيد التأجيل</button>
                  <button onClick={() => setPostponeModalRow(null)} className="flex-1 py-4 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-sm uppercase">إلغاء</button>
               </div>
             </div>
@@ -506,7 +580,6 @@ export default function App() {
           </main>
         </div>
       )}
-
     </div>
   );
 }
