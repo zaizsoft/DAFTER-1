@@ -5,11 +5,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>الدفتر اليومي الذكي | Smart Record</title>
+    <!-- Favicon SVG -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='20' y='15' width='60' height='75' rx='8' fill='%231e293b'/%3E%3Crect x='35' y='10' width='30' height='10' rx='2' fill='%23f97316'/%3E%3Cpath d='M70 65c0 8-6 15-15 15s-15-7-15-15 6-15 15-15 15 7 15 15z' fill='%23fb923c'/%3E%3Crect x='55' y='55' width='25' height='12' rx='2' fill='%23fb923c'/%3E%3C/svg%3E">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
     <style>
       :root {
         --primary: #2563eb;
+        --orange: #f97316;
         --bg-slate: #0f172a;
       }
       body {
@@ -20,7 +23,63 @@
         margin: 0;
       }
       
-      /* Static Mesh Background */
+      /* Splash Screen Styles */
+      #splash-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        background: #f0f9ff;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        transition: opacity 0.8s ease, visibility 0.8s;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cpath d='M10 10 L90 10 L90 90 L10 90 Z' fill='none' stroke='%230ea5e9' stroke-width='0.1' stroke-opacity='0.2'/%3E%3Ccircle cx='10' cy='10' r='1' fill='%230ea5e9' fill-opacity='0.3'/%3E%3C/svg%3E");
+      }
+
+      .circuit-pattern {
+        position: absolute;
+        inset: 0;
+        opacity: 0.15;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 600'%3E%3Cpath d='M100 100h200v100h100v-200h200v400h-300v-100h-200z' fill='none' stroke='%230284c7' stroke-width='1'/%3E%3Ccircle cx='100' cy='100' r='3' fill='%230284c7'/%3E%3Ccircle cx='300' cy='100' r='3' fill='%230284c7'/%3E%3Ccircle cx='300' cy='200' r='3' fill='%230284c7'/%3E%3C/svg%3E");
+        background-size: 400px;
+        z-index: -1;
+      }
+
+      .splash-logo {
+        width: 180px;
+        height: 180px;
+        filter: drop-shadow(0 20px 30px rgba(2, 132, 199, 0.2));
+        animation: pulse 2s infinite ease-in-out;
+      }
+
+      .splash-text-ar {
+        font-weight: 900;
+        font-size: 3.5rem;
+        color: #1e3a8a;
+        margin-top: 2rem;
+        text-shadow: 2px 2px 0px rgba(2, 132, 199, 0.1);
+      }
+
+      .splash-text-en {
+        font-weight: 700;
+        font-size: 1.5rem;
+        color: #1e40af;
+        letter-spacing: 0.1em;
+        margin-top: -0.5rem;
+      }
+
+      @keyframes pulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.05); opacity: 0.9; }
+      }
+
+      #splash-screen.hidden {
+        opacity: 0;
+        visibility: hidden;
+      }
+
+      /* Mesh Background for App */
       .mesh-bg {
         position: fixed;
         top: 0;
@@ -35,35 +94,40 @@
           radial-gradient(at 100% 0%, hsla(164,86%,41%,0.1) 0, transparent 50%);
       }
 
-      .glass-effect {
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-      }
-
-      ::-webkit-scrollbar {
-        width: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: rgba(255,255,255,0.05);
-      }
-      ::-webkit-scrollbar-thumb {
-        background: rgba(255,255,255,0.1);
-        border-radius: 10px;
-      }
+      ::-webkit-scrollbar { width: 8px; }
+      ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
+      ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
     </style>
-    <script type="importmap">
+  <script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@^19.2.4",
-    "react-dom": "https://esm.sh/react-dom@^19.2.4",
     "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "lucide-react": "https://esm.sh/lucide-react@^0.400.0",
-    "react/": "https://esm.sh/react@^19.2.4/"
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "react": "https://esm.sh/react@^19.2.4",
+    "lucide-react": "https://esm.sh/lucide-react@^0.563.0"
   }
 }
 </script>
-  </head>
+</head>
   <body>
+    <!-- Splash Screen -->
+    <div id="splash-screen">
+      <div class="circuit-pattern"></div>
+      <svg class="splash-logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="20" y="15" width="60" height="75" rx="8" fill="#1e3a8a" stroke="#0ea5e9" stroke-width="2" />
+        <rect x="30" y="30" width="40" height="4" rx="2" fill="white" fill-opacity="0.2" />
+        <rect x="30" y="40" width="25" height="4" rx="2" fill="white" fill-opacity="0.2" />
+        <rect x="35" y="8" width="30" height="12" rx="3" fill="#f97316" />
+        <circle cx="50" cy="14" r="2" fill="white" />
+        <g>
+          <path d="M75 55C75 48.3726 69.6274 43 63 43C56.3726 43 51 48.3726 51 55C51 61.6274 56.3726 67 63 67H80C82.7614 67 85 64.7614 85 62V58C85 56.3431 83.6569 55 82 55H75Z" fill="#fb923c" />
+          <circle cx="63" cy="55" r="4" fill="#ea580c" />
+        </g>
+      </svg>
+      <h1 class="splash-text-ar">الدفتر الذكي</h1>
+      <p class="splash-text-en">Digital PE Office</p>
+    </div>
+
     <div class="mesh-bg"></div>
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>

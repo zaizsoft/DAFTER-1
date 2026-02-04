@@ -39,6 +39,35 @@ import { DailyRecordRow, TeacherInfo, WeeklySlot, PostponeReason, PostponedSessi
 import { WEEKLY_SCHEDULE, FIELD_NAME, ALL_LESSONS } from './constants';
 import { formatDate, getDayName, getLessonForSlot } from './utils';
 
+// --- Custom App Icon Component (Based on User Image) ---
+const AppIcon = ({ size = 24, className = "" }: { size?: number, className?: string }) => (
+  <svg 
+    width={size} 
+    height={size} 
+    viewBox="0 0 100 100" 
+    fill="none" 
+    xmlns="http://www.w3.org/2000/svg"
+    className={className}
+  >
+    {/* Clipboard Base */}
+    <rect x="20" y="15" width="60" height="75" rx="8" fill="#1e293b" stroke="white" strokeWidth="2" strokeOpacity="0.1" />
+    <rect x="30" y="30" width="40" height="4" rx="2" fill="white" fillOpacity="0.1" />
+    <rect x="30" y="40" width="25" height="4" rx="2" fill="white" fillOpacity="0.1" />
+    <rect x="30" y="50" width="35" height="4" rx="2" fill="white" fillOpacity="0.1" />
+    
+    {/* Clipboard Clip */}
+    <rect x="35" y="8" width="30" height="12" rx="3" fill="#f97316" />
+    <circle cx="50" cy="14" r="2" fill="white" />
+    
+    {/* Whistle Overlapping */}
+    <g filter="drop-shadow(0 4px 6px rgba(0,0,0,0.3))">
+      <path d="M75 55C75 48.3726 69.6274 43 63 43C56.3726 43 51 48.3726 51 55C51 61.6274 56.3726 67 63 67H80C82.7614 67 85 64.7614 85 62V58C85 56.3431 83.6569 55 82 55H75Z" fill="#fb923c" />
+      <rect x="70" y="48" width="8" height="3" rx="1" fill="#f97316" />
+      <circle cx="63" cy="55" r="4" fill="#ea580c" />
+    </g>
+  </svg>
+);
+
 // --- Notification Logic ---
 type NotificationType = 'success' | 'error' | 'info' | 'warning';
 interface AppNotification {
@@ -64,7 +93,6 @@ const REASONS_MAP: Record<PostponeReason, string> = {
 
 type ThemeKey = keyof typeof THEMES;
 
-// Fix: Add 'key' to prop type to avoid TS error when used in lists with mapped items
 const GlassPanel = ({ children, className = "" }: { children?: React.ReactNode, className?: string, key?: React.Key }) => (
   <div className={`bg-white/5 border border-white/10 rounded-[2rem] p-6 shadow-xl backdrop-blur-sm ${className}`}>{children}</div>
 );
@@ -165,6 +193,15 @@ export default function App() {
     localStorage.setItem('postponed_sessions', JSON.stringify(postponedSessions));
     document.body.style.backgroundColor = currentTheme.bg;
   }, [semesterStart, teacherInfo, themeKey, currentTheme, meetingsState, postponedSessions]);
+
+  // Hide Splash Screen Logic
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const splash = document.getElementById('splash-screen');
+      if (splash) splash.classList.add('hidden');
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const addNotification = (type: NotificationType, title: string, message: string) => {
     const id = Math.random().toString(36).substring(2, 9);
@@ -312,13 +349,13 @@ export default function App() {
 
       {/* --- Sidebar (Navigation) --- */}
       <nav className="hidden md:flex flex-col w-72 bg-slate-950/50 border-l border-white/10 p-6 z-50">
-        <div className="flex items-center gap-4 mb-12">
-          <div className="p-3 rounded-2xl bg-blue-600 shadow-xl shadow-blue-600/30 ring-4 ring-blue-600/10">
-            <LayoutDashboard className="text-white" size={24} />
+        <div className="flex items-center gap-4 mb-12 group cursor-pointer">
+          <div className="p-3 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 shadow-xl shadow-orange-600/20 ring-4 ring-orange-500/10 group-hover:scale-110 transition-transform duration-500">
+            <AppIcon size={32} />
           </div>
           <div>
-            <h1 className="text-lg font-black text-white tracking-tight">الدفتر الذكي</h1>
-            <p className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Digital PE Office</p>
+            <h1 className="text-xl font-black text-white tracking-tight group-hover:text-orange-400 transition-colors">الدفتر الذكي</h1>
+            <p className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Smart Sport Office</p>
           </div>
         </div>
         <div className="flex-1 space-y-3">
@@ -329,10 +366,10 @@ export default function App() {
         </div>
         <div className="mt-auto pt-6 border-t border-white/10">
            <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
-              <p className="text-[10px] font-bold text-slate-500 mb-2">حالة النظام</p>
+              <p className="text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-tighter">الحالة التشغيلية</p>
               <div className="flex items-center gap-2">
-                 <div className="w-2 h-2 rounded-full bg-teal-500 animate-pulse"></div>
-                 <span className="text-xs font-bold text-teal-500">متصل وجاهز</span>
+                 <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>
+                 <span className="text-xs font-bold text-orange-500">نشط الآن</span>
               </div>
            </div>
         </div>
@@ -342,12 +379,12 @@ export default function App() {
       <main className="flex-1 overflow-y-auto px-6 py-8 md:px-12 md:py-10 space-y-10">
         <header className="flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-5">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center bg-slate-800 border border-white/10 shadow-lg group hover:border-blue-500/50 transition-colors">
-              <User size={28} style={{ color: currentTheme.primary }} />
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center bg-slate-800 border border-white/10 shadow-lg group hover:border-orange-500/50 transition-colors">
+              <AppIcon size={40} />
             </div>
             <div>
               <h2 className="text-2xl font-black text-white">{teacherInfo.name}</h2>
-              <p className="text-slate-400 text-sm flex items-center gap-1"><School size={14} className="text-blue-500" /> {teacherInfo.school}</p>
+              <p className="text-slate-400 text-sm flex items-center gap-1"><School size={14} className="text-orange-500" /> {teacherInfo.school}</p>
             </div>
           </div>
           
@@ -355,7 +392,7 @@ export default function App() {
             <div className="flex items-center gap-2 bg-white/5 p-1.5 rounded-2xl border border-white/10 shadow-inner">
               <button onClick={() => changeDay(-1)} className="p-3 hover:bg-white/10 rounded-xl transition-colors text-slate-400"><ChevronRight size={24} /></button>
               <div className="text-center min-w-[160px] px-2">
-                <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-0.5">{getDayName(new Date(targetDate))}</p>
+                <p className="text-[9px] font-black text-orange-400 uppercase tracking-widest mb-0.5">{getDayName(new Date(targetDate))}</p>
                 <p className="text-sm font-black">{formatDate(new Date(targetDate))}</p>
               </div>
               <button onClick={() => changeDay(1)} className="p-3 hover:bg-white/10 rounded-xl transition-colors text-slate-400"><ChevronLeft size={24} /></button>
@@ -366,20 +403,20 @@ export default function App() {
         <div className="pb-28">
           {activeView === 'settings' ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <GlassPanel className="p-8 space-y-8 border-t-4 border-t-teal-500">
+              <GlassPanel className="p-8 space-y-8 border-t-4 border-t-orange-500">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-black flex items-center gap-3 text-teal-400"><Database size={24} /> إدارة البيانات</h3>
-                  <div className="p-2 bg-teal-500/10 text-teal-400 rounded-lg"><Info size={18} /></div>
+                  <h3 className="text-xl font-black flex items-center gap-3 text-orange-400"><Database size={24} /> إدارة البيانات</h3>
+                  <div className="p-2 bg-orange-500/10 text-orange-400 rounded-lg"><Info size={18} /></div>
                 </div>
                 <div className="space-y-6">
                   <p className="text-xs text-slate-400 leading-relaxed font-bold">قم بتصدير مذكراتك وملاحظاتك المهنية لحفظها خارج التطبيق أو استعادتها عند تغيير المتصفح.</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <button onClick={handleBackup} className="flex items-center justify-center gap-3 py-5 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20 group">
+                    <button onClick={handleBackup} className="flex items-center justify-center gap-3 py-5 bg-orange-600 text-white rounded-2xl hover:bg-orange-700 transition-all shadow-lg shadow-orange-600/20 group">
                       <Download size={20} className="group-hover:-translate-y-1 transition-transform" />
                       <span className="text-sm font-black">نسخ احتياطي</span>
                     </button>
                     <button onClick={() => fileInputRef.current?.click()} className="flex items-center justify-center gap-3 py-5 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all group">
-                      <Upload size={20} className="text-teal-400 group-hover:translate-y-1 transition-transform" />
+                      <Upload size={20} className="text-orange-400 group-hover:translate-y-1 transition-transform" />
                       <span className="text-sm font-black">استرجاع النسخة</span>
                     </button>
                     <input type="file" ref={fileInputRef} onChange={handleRestore} className="hidden" accept=".json" />
@@ -603,7 +640,7 @@ export default function App() {
                <div className="max-w-6xl mx-auto p-6 md:p-16 text-right">
                   <div className="bg-white text-slate-900 p-12 md:p-20 rounded-lg shadow-[0_50px_100px_rgba(0,0,0,0.3)] border-t-[12px] border-blue-600 space-y-16 relative overflow-hidden">
                      {/* Watermark/Background Decoration */}
-                     <div className="absolute top-10 left-10 opacity-[0.03] pointer-events-none rotate-12"><LayoutDashboard size={400} /></div>
+                     <div className="absolute top-10 left-10 opacity-[0.03] pointer-events-none rotate-12"><AppIcon size={400} /></div>
                      
                      <div className="flex justify-between items-start border-b-2 border-slate-100 pb-12 relative">
                         <div className="text-xs font-black space-y-1 text-slate-500 uppercase">
