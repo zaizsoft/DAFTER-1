@@ -23,6 +23,7 @@ export interface DailyRecordRow {
   time: string;
   gradeSection: string;
   field: string;
+  topic: string; // تم الإضافة هنا: نوع الحصة/الموضوع
   learnings: string;
   content: string;
   teachingSituation?: string;

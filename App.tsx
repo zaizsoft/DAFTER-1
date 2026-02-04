@@ -30,7 +30,8 @@ import {
   Download,
   Upload,
   RefreshCw,
-  Database
+  Database,
+  Tag
 } from 'lucide-react';
 import { DailyRecordRow, TeacherInfo, WeeklySlot, PostponeReason, PostponedSession } from './types';
 import { WEEKLY_SCHEDULE, FIELD_NAME, ALL_LESSONS } from './constants';
@@ -52,7 +53,6 @@ const REASONS_MAP: Record<PostponeReason, string> = {
 
 type ThemeKey = keyof typeof THEMES;
 
-// Updated GlassPanel to explicitly include key in its props type to resolve TypeScript error when used in loops
 const GlassPanel = ({ children, className = "" }: { children?: React.ReactNode, className?: string, key?: React.Key }) => (
   <div className={`bg-white/5 border border-white/10 rounded-[2rem] p-6 ${className}`}>{children}</div>
 );
@@ -138,6 +138,7 @@ export default function App() {
         time: slot.time,
         gradeSection: `${slot.grade} (${slot.section})`,
         field: FIELD_NAME,
+        topic: lesson.topic, // تم الربط هنا
         learnings: lesson.knowledgeResource,
         content: lesson.content,
         teachingSituation: lesson.teachingSituation,
@@ -177,21 +178,17 @@ export default function App() {
     reader.onload = (e) => {
       try {
         const data = JSON.parse(e.target?.result as string);
-        
-        // التحقق من صحة البيانات وتحديثها
         if (data.teacherInfo) setTeacherInfo(data.teacherInfo);
         if (data.meetingsState) setMeetingsState(data.meetingsState);
         if (data.postponedSessions) setPostponedSessions(data.postponedSessions);
         if (data.semesterStart) setSemesterStart(data.semesterStart);
         if (data.appTheme) setThemeKey(data.appTheme);
-
         alert('تم استرجاع كافة الملاحظات والبيانات بنجاح!');
       } catch (err) {
-        alert('حدث خطأ في قراءة ملف النسخة الاحتياطية. يرجى التأكد من اختيار ملف صحيح.');
+        alert('حدث خطأ في قراءة ملف النسخة الاحتياطية.');
       }
     };
     reader.readAsText(file);
-    // تفريغ المدخل للسماح برفع نفس الملف مرة أخرى إذا لزم الأمر
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -278,36 +275,23 @@ export default function App() {
           )}
         </header>
 
-        <div>
+        <div className="pb-24">
           {activeView === 'settings' ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* إعدادات البيانات - Backup & Restore */}
               <GlassPanel className="p-8 space-y-6">
                 <h3 className="text-lg font-bold flex items-center gap-2 text-teal-400"><Database size={20} /> إدارة البيانات والنسخ الاحتياطي</h3>
                 <div className="space-y-4">
                   <p className="text-xs text-slate-400 leading-relaxed">احتفظ بنسخة شاملة من مذكراتك وملاحظاتك المهنية لاستعادتها لاحقاً.</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <button 
-                      onClick={handleBackup}
-                      className="flex items-center justify-center gap-3 py-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-blue-600/20 hover:border-blue-500/50 transition-all group"
-                    >
+                    <button onClick={handleBackup} className="flex items-center justify-center gap-3 py-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-blue-600/20 hover:border-blue-500/50 transition-all group">
                       <Download size={18} className="text-blue-400 group-hover:scale-110 transition-transform" />
                       <span className="text-xs font-bold">نسخ احتياطي</span>
                     </button>
-                    <button 
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center justify-center gap-3 py-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-teal-600/20 hover:border-teal-500/50 transition-all group"
-                    >
+                    <button onClick={() => fileInputRef.current?.click()} className="flex items-center justify-center gap-3 py-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-teal-600/20 hover:border-teal-500/50 transition-all group">
                       <Upload size={18} className="text-teal-400 group-hover:scale-110 transition-transform" />
                       <span className="text-xs font-bold">استرجاع النسخة</span>
                     </button>
-                    <input 
-                      type="file" 
-                      ref={fileInputRef} 
-                      onChange={handleRestore} 
-                      className="hidden" 
-                      accept=".json"
-                    />
+                    <input type="file" ref={fileInputRef} onChange={handleRestore} className="hidden" accept=".json" />
                   </div>
                 </div>
               </GlassPanel>
@@ -334,31 +318,24 @@ export default function App() {
             <div className="space-y-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-2xl font-black text-white flex items-center gap-3"><History className="text-blue-500" /> سجل الملاحظات والحصص المؤجلة</h3>
-                <div className="px-4 py-2 bg-blue-600/20 text-blue-400 rounded-lg text-xs font-bold border border-blue-600/20">
-                  إجمالي المؤجلات: {postponedSessions.length}
-                </div>
+                <div className="px-4 py-2 bg-blue-600/20 text-blue-400 rounded-lg text-xs font-bold border border-blue-600/20">إجمالي المؤجلات: {postponedSessions.length}</div>
               </div>
-
               {postponedSessions.length > 0 ? (
                 <div className="grid grid-cols-1 gap-4">
                   {postponedSessions.map((ps, idx) => (
                     <GlassPanel key={idx} className="flex flex-col md:flex-row items-center gap-6 border-r-4 border-r-red-500 hover:bg-white/[0.07] transition-colors">
                       <div className="flex-1 text-right">
-                        <div className="flex items-center gap-2 text-[10px] font-black text-slate-500 mb-1">
-                          <Calendar size={12} /> {ps.date} | <School size={12} /> القسم: {ps.gradeSection}
-                        </div>
+                        <div className="flex items-center gap-2 text-[10px] font-black text-slate-500 mb-1"><Calendar size={12} /> {ps.date} | <School size={12} /> القسم: {ps.gradeSection}</div>
                         <h4 className="text-lg font-bold">سبب التأجيل: <span className="text-red-400">{ps.reason}</span></h4>
                       </div>
-                      <div className="px-4 py-2 bg-red-500/10 text-red-500 rounded-lg text-[10px] font-bold uppercase border border-red-500/20">
-                        حصة غير مكتملة
-                      </div>
+                      <div className="px-4 py-2 bg-red-500/10 text-red-500 rounded-lg text-[10px] font-bold uppercase border border-red-500/20">حصة غير مكتملة</div>
                     </GlassPanel>
                   ))}
                 </div>
               ) : (
                 <div className="py-32 text-center opacity-20">
                   <ClipboardList size={64} className="mx-auto mb-4" />
-                  <p className="text-xl font-bold">لا توجد ملاحظات أو حصص مؤجلة حالياً</p>
+                  <p className="text-xl font-bold">لا توجد ملاحظات حالياً</p>
                 </div>
               )}
             </div>
@@ -386,15 +363,27 @@ export default function App() {
               {rows.length > 0 ? rows.map((row, idx) => (
                 <div key={idx} className={`bg-white/5 border border-white/10 rounded-2xl overflow-hidden transition-all ${row.isIncomplete ? 'border-red-500/50 bg-red-500/10' : ''}`}>
                   <div className="p-6 flex flex-col md:flex-row items-center gap-6">
-                    <div className="w-24 py-3 rounded-xl bg-slate-900 border border-white/10 text-center text-[10px] font-bold text-blue-400">
-                      {row.time}
+                    <div className="flex flex-col gap-2">
+                      <div className="w-24 py-3 rounded-xl bg-slate-900 border border-white/10 text-center text-[10px] font-bold text-blue-400 shadow-sm">
+                        {row.time}
+                      </div>
+                      <div className="w-24 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-center text-[8px] font-black text-indigo-400 uppercase tracking-tighter">
+                        {row.topic.includes("تقويم") ? "تقويم" : "وحدة تعليمية"}
+                      </div>
                     </div>
                     
                     <div className="flex-1 text-right">
                       <div className="text-[9px] font-bold text-slate-500 uppercase flex items-center gap-1 mb-1">
                         <PenTool size={10} /> {row.field} | السنة {row.gradeSection}
                       </div>
-                      <h4 className="text-lg font-bold text-white">{row.learnings}</h4>
+                      
+                      {/* عرض نوع الحصة بشكل بارز */}
+                      <div className="flex items-center gap-2 mb-2">
+                        <Tag size={14} className="text-amber-500" />
+                        <span className="text-xs font-black text-amber-500 uppercase tracking-wide">الموضوع: {row.topic}</span>
+                      </div>
+
+                      <h4 className="text-lg font-bold text-white mb-2">{row.learnings}</h4>
                       
                       <div className="mt-3 p-3 bg-teal-500/10 border-r-2 border-teal-500 rounded-lg">
                         <div className="flex items-center gap-2 mb-1">
@@ -409,28 +398,16 @@ export default function App() {
                           <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-600 text-white rounded-lg shadow-lg text-xs font-bold animate-pulse">
                             <AlertCircle size={14} /> لم تكتمل الحصة
                           </div>
-                          {postponedSessions.find(s => s.key === `${row.date}_${row.gradeSection.replace(' (', '_').replace(')', '')}_${row.time}`)?.reason && (
-                             <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 text-slate-300 rounded-lg text-xs font-bold border border-white/10">
-                               <MessageSquare size={12} /> {postponedSessions.find(s => s.key === `${row.date}_${row.gradeSection.replace(' (', '_').replace(')', '')}_${row.time}`)?.reason}
-                             </div>
-                          )}
                         </div>
                       )}
                     </div>
 
                     <div className="flex items-center gap-4">
-                       <button 
-                        onClick={() => handlePostponeClick(row)}
-                        className={`p-4 rounded-xl border transition-all flex flex-col items-center gap-1 ${row.isIncomplete ? 'bg-red-600 border-red-600 text-white shadow-lg shadow-red-600/20' : 'bg-white/5 border-white/10 text-slate-500 hover:text-green-500'}`}
-                       >
+                       <button onClick={() => handlePostponeClick(row)} className={`p-4 rounded-xl border transition-all flex flex-col items-center gap-1 ${row.isIncomplete ? 'bg-red-600 border-red-600 text-white shadow-lg' : 'bg-white/5 border-white/10 text-slate-500 hover:text-green-500'}`}>
                          {row.isIncomplete ? <XCircle size={24} /> : <CheckCircle size={24} />}
                          <span className="text-[8px] font-bold uppercase">{row.isIncomplete ? 'مؤجلة' : 'تمت'}</span>
                        </button>
-
-                       <button 
-                        onClick={() => setExpandedRowIndex(expandedRowIndex === idx ? null : idx)}
-                        className="p-2 text-slate-500 hover:text-white"
-                       >
+                       <button onClick={() => setExpandedRowIndex(expandedRowIndex === idx ? null : idx)} className="p-2 text-slate-500 hover:text-white">
                          <ChevronDown size={24} className={`transition-transform ${expandedRowIndex === idx ? 'rotate-180' : ''}`} />
                        </button>
                     </div>
@@ -442,10 +419,7 @@ export default function App() {
                         <span className="text-[10px] text-emerald-400 font-bold block mb-1">شرح الموقف التعليمي</span>
                         <p className="text-sm leading-relaxed">{row.teachingSituation || "يتم اتباع التدرج السنوي للمكتسبات."}</p>
                       </div>
-                      <button 
-                        onClick={() => { setSelectedRow(row); setViewPdf(false); }}
-                        className="w-full py-4 bg-blue-600 hover:bg-blue-700 rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2 transition-colors shadow-lg shadow-blue-600/20"
-                      >
+                      <button onClick={() => { setSelectedRow(row); setViewPdf(false); }} className="w-full py-4 bg-blue-600 hover:bg-blue-700 rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2 transition-colors shadow-lg shadow-blue-600/20">
                         فتح البطاقة الكاملة <ExternalLink size={16} />
                       </button>
                     </div>
@@ -470,7 +444,7 @@ export default function App() {
         <button onClick={() => setActiveView('settings')} className={`flex flex-col items-center gap-1 ${activeView === 'settings' ? 'text-blue-500' : 'text-slate-500'}`}><SettingsIcon size={20} /><span className="text-[9px] font-bold">إعدادات</span></button>
       </nav>
 
-      {/* Postpone Reason Modal */}
+      {/* Postpone Modal */}
       {postponeModalRow && (
         <div className="fixed inset-0 z-[110] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-6 text-right">
           <div className="bg-slate-900 border border-white/10 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl">
@@ -482,25 +456,19 @@ export default function App() {
               <p className="text-sm text-slate-400">يرجى تحديد سبب عدم إتمام الحصة لهذا اليوم:</p>
               <div className="grid grid-cols-1 gap-3">
                 {(Object.keys(REASONS_MAP) as PostponeReason[]).map((r) => (
-                  <button 
-                    key={r}
-                    onClick={() => setTempReasonType(r)}
-                    className={`w-full p-4 rounded-xl text-sm font-bold border transition-all text-right flex items-center justify-between ${tempReasonType === r ? 'bg-blue-600 border-blue-500 shadow-lg shadow-blue-600/20' : 'bg-white/5 border-white/5 hover:border-white/20'}`}
-                  >
+                  <button key={r} onClick={() => setTempReasonType(r)} className={`w-full p-4 rounded-xl text-sm font-bold border transition-all text-right flex items-center justify-between ${tempReasonType === r ? 'bg-blue-600 border-blue-500 shadow-lg' : 'bg-white/5 border-white/5 hover:border-white/20'}`}>
                     <span>{REASONS_MAP[r]}</span>
                     {tempReasonType === r && <CheckCircle size={18} />}
                   </button>
                 ))}
               </div>
-
               {tempReasonType === 'other' && (
-                <div className="mt-4 animate-in fade-in slide-in-from-top-2">
+                <div className="mt-4">
                    <ModernField label="اكتب السبب هنا" icon={PenTool} value={tempOtherText} onChange={setTempOtherText} color={currentTheme.primary} />
                 </div>
               )}
-
               <div className="flex gap-4 mt-8">
-                 <button onClick={confirmPostpone} className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 rounded-xl font-bold text-sm uppercase shadow-lg shadow-blue-600/30">تأكيد التأجيل</button>
+                 <button onClick={confirmPostpone} className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 rounded-xl font-bold text-sm uppercase">تأكيد التأجيل</button>
                  <button onClick={() => setPostponeModalRow(null)} className="flex-1 py-4 bg-white/5 hover:bg-white/10 rounded-xl font-bold text-sm uppercase">إلغاء</button>
               </div>
             </div>
@@ -526,19 +494,7 @@ export default function App() {
           </header>
           
           <main className="flex-1 bg-slate-900 overflow-y-auto">
-             {viewPdf ? (
-               <div className="w-full h-full flex flex-col items-center justify-center p-4">
-                  {(selectedRow.pdfUrl && selectedRow.pdfUrl !== "#") ? (
-                    <iframe src={`${selectedRow.pdfUrl}#toolbar=0`} className="w-full h-full border-none max-w-5xl rounded-lg shadow-2xl bg-white" title="PDF" />
-                  ) : (
-                    <div className="text-center space-y-6 max-w-md">
-                       <AlertCircle size={60} className="text-blue-500 mx-auto" />
-                       <p className="text-lg font-bold">لم يتم ربط ملف PDF لهذه الحصة بعد</p>
-                       <button onClick={() => setViewPdf(false)} className="px-6 py-3 bg-blue-600 rounded-xl text-xs font-bold w-full">عرض التفاصيل النصية</button>
-                    </div>
-                  )}
-               </div>
-             ) : (
+             {!viewPdf && (
                <div className="max-w-5xl mx-auto p-6 md:p-12 text-right">
                   <div className="bg-white text-slate-900 p-8 rounded-sm shadow-2xl border-t-8 border-blue-600 space-y-10">
                      <div className="flex justify-between items-start border-b border-slate-200 pb-6">
@@ -552,25 +508,35 @@ export default function App() {
                            <p>المؤسسة: {teacherInfo.school}</p>
                         </div>
                      </div>
+                     
+                     {/* إضافة نوع الحصة في البطاقة التفصيلية */}
+                     <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Tag size={18} className="text-blue-600" />
+                          <span className="font-black text-blue-900">نوع الحصة / الموضوع:</span>
+                        </div>
+                        <span className="text-lg font-bold text-blue-700">{selectedRow.topic}</span>
+                     </div>
+
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                         <div className="space-y-3">
-                           <h4 className="text-sm font-black text-blue-700">المورد المعرفي المبرمج:</h4>
+                           <h4 className="text-sm font-black text-blue-700 uppercase">المورد المعرفي المبرمج:</h4>
                            <p className="text-lg leading-relaxed bg-slate-50 p-4 border-r-4 border-blue-600">{selectedRow.learnings}</p>
                         </div>
                         <div className="space-y-3">
-                           <h4 className="text-sm font-black text-teal-700">محتوى التعلم:</h4>
+                           <h4 className="text-sm font-black text-teal-700 uppercase">محتوى التعلم:</h4>
                            <p className="text-lg leading-relaxed bg-slate-50 p-4 border-r-4 border-teal-600">{selectedRow.content}</p>
                         </div>
                      </div>
                      <div className="space-y-4">
-                        <h4 className="text-sm font-black text-emerald-700">محتوى الإنجاز (المواقف التعليمية):</h4>
+                        <h4 className="text-sm font-black text-emerald-700 uppercase">محتوى الإنجاز (المواقف التعليمية):</h4>
                         <div className="bg-emerald-50 p-6 border-r-4 border-emerald-600">
                            <p className="text-lg leading-loose whitespace-pre-wrap">{selectedRow.teachingSituation}</p>
                         </div>
                      </div>
                      <div className="grid grid-cols-2 gap-10 border-t border-slate-100 pt-8">
                         <div className="space-y-3">
-                           <h4 className="text-sm font-black text-amber-700">الوسائل البيداغوجية:</h4>
+                           <h4 className="text-sm font-black text-amber-700 uppercase">الوسائل البيداغوجية:</h4>
                            <p className="text-md font-bold italic">{selectedRow.tools || "سلم، أقماع، صحون، كرات."}</p>
                         </div>
                      </div>
