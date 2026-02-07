@@ -33,13 +33,16 @@ import {
   Database,
   Tag,
   Bell,
-  Info
+  Info,
+  Code,
+  Award,
+  Globe
 } from 'lucide-react';
 import { DailyRecordRow, TeacherInfo, WeeklySlot, PostponeReason, PostponedSession } from './types';
 import { WEEKLY_SCHEDULE, FIELD_NAME, ALL_LESSONS } from './constants';
 import { formatDate, getDayName, getLessonForSlot } from './utils';
 
-// --- Custom App Icon Component (Based on User Image) ---
+// --- Custom App Icon Component (Signature Style) ---
 const AppIcon = ({ size = 24, className = "" }: { size?: number, className?: string }) => (
   <svg 
     width={size} 
@@ -49,26 +52,26 @@ const AppIcon = ({ size = 24, className = "" }: { size?: number, className?: str
     xmlns="http://www.w3.org/2000/svg"
     className={className}
   >
-    {/* Clipboard Base */}
-    <rect x="20" y="15" width="60" height="75" rx="8" fill="#1e293b" stroke="white" strokeWidth="2" strokeOpacity="0.1" />
-    <rect x="30" y="30" width="40" height="4" rx="2" fill="white" fillOpacity="0.1" />
-    <rect x="30" y="40" width="25" height="4" rx="2" fill="white" fillOpacity="0.1" />
-    <rect x="30" y="50" width="35" height="4" rx="2" fill="white" fillOpacity="0.1" />
-    
-    {/* Clipboard Clip */}
-    <rect x="35" y="8" width="30" height="12" rx="3" fill="#f97316" />
+    <defs>
+      <linearGradient id="iconGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#f97316" />
+        <stop offset="100%" stopColor="#ea580c" />
+      </linearGradient>
+    </defs>
+    <rect x="20" y="15" width="60" height="75" rx="8" fill="#1e293b" stroke="white" strokeWidth="1" strokeOpacity="0.2" />
+    <rect x="32" y="35" width="36" height="3" rx="1.5" fill="white" fillOpacity="0.1" />
+    <rect x="32" y="45" width="28" height="3" rx="1.5" fill="white" fillOpacity="0.1" />
+    <rect x="32" y="55" width="32" height="3" rx="1.5" fill="white" fillOpacity="0.1" />
+    <rect x="35" y="8" width="30" height="12" rx="4" fill="url(#iconGrad)" />
     <circle cx="50" cy="14" r="2" fill="white" />
-    
-    {/* Whistle Overlapping */}
-    <g filter="drop-shadow(0 4px 6px rgba(0,0,0,0.3))">
-      <path d="M75 55C75 48.3726 69.6274 43 63 43C56.3726 43 51 48.3726 51 55C51 61.6274 56.3726 67 63 67H80C82.7614 67 85 64.7614 85 62V58C85 56.3431 83.6569 55 82 55H75Z" fill="#fb923c" />
-      <rect x="70" y="48" width="8" height="3" rx="1" fill="#f97316" />
-      <circle cx="63" cy="55" r="4" fill="#ea580c" />
+    <g filter="drop-shadow(0 4px 8px rgba(0,0,0,0.4))">
+      <path d="M78 58C78 51.3726 72.6274 46 66 46C59.3726 46 54 51.3726 54 58C54 64.6274 59.3726 70 66 70H83C85.7614 70 88 67.7614 88 65V61C88 59.3431 86.6569 58 85 58H78Z" fill="url(#iconGrad)" />
+      <rect x="72" y="51" width="10" height="3" rx="1.5" fill="#ea580c" />
+      <circle cx="66" cy="58" r="4" fill="#9a3412" />
     </g>
   </svg>
 );
 
-// --- Notification Logic ---
 type NotificationType = 'success' | 'error' | 'info' | 'warning';
 interface AppNotification {
   id: string;
@@ -93,8 +96,9 @@ const REASONS_MAP: Record<PostponeReason, string> = {
 
 type ThemeKey = keyof typeof THEMES;
 
-const GlassPanel = ({ children, className = "" }: { children?: React.ReactNode, className?: string, key?: React.Key }) => (
-  <div className={`bg-white/5 border border-white/10 rounded-[2rem] p-6 shadow-xl backdrop-blur-sm ${className}`}>{children}</div>
+// Fix: Add key to prop definition to avoid TypeScript error when rendering lists of GlassPanel
+const GlassPanel = ({ children, className = "", id }: { children?: React.ReactNode, className?: string, id?: string, key?: React.Key }) => (
+  <div id={id} className={`bg-white/5 border border-white/10 rounded-[2rem] p-6 shadow-xl backdrop-blur-sm ${className}`}>{children}</div>
 );
 
 const IconButton = ({ icon: Icon, onClick, active = false, label = "", color }: { icon: React.ElementType, onClick: () => void, active?: boolean, label?: string, color: string }) => (
@@ -120,7 +124,6 @@ const ModernField = ({ label, icon: Icon, value, onChange, type = "text", color 
   </div>
 );
 
-// --- Toast Component ---
 const Toast = ({ notification, onClose }: { notification: AppNotification, onClose: (id: string) => void }) => {
   const styles = {
     success: 'border-teal-500 bg-teal-500/10 text-teal-400',
@@ -186,6 +189,17 @@ export default function App() {
   });
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      const splash = document.getElementById('splash-screen');
+      if (splash) {
+        splash.classList.add('hidden');
+        setTimeout(() => { if (splash) splash.style.display = 'none'; }, 800);
+      }
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem('semester_start', semesterStart);
     localStorage.setItem('teacher_info', JSON.stringify(teacherInfo));
     localStorage.setItem('app_theme', themeKey);
@@ -193,15 +207,6 @@ export default function App() {
     localStorage.setItem('postponed_sessions', JSON.stringify(postponedSessions));
     document.body.style.backgroundColor = currentTheme.bg;
   }, [semesterStart, teacherInfo, themeKey, currentTheme, meetingsState, postponedSessions]);
-
-  // Hide Splash Screen Logic
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const splash = document.getElementById('splash-screen');
-      if (splash) splash.classList.add('hidden');
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, []);
 
   const addNotification = (type: NotificationType, title: string, message: string) => {
     const id = Math.random().toString(36).substring(2, 9);
@@ -253,7 +258,6 @@ export default function App() {
         appTheme: themeKey,
         backupDate: new Date().toLocaleString('ar-DZ')
       };
-      
       const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -261,7 +265,6 @@ export default function App() {
       link.download = `SmarteRecord_${new Date().toISOString().split('T')[0]}.json`;
       link.click();
       URL.revokeObjectURL(url);
-      
       addNotification('success', 'نجاح النسخ الاحتياطي', 'تم حفظ بياناتك وملاحظاتك بأمان في ملف خارجي.');
     } catch (err) {
       addNotification('error', 'فشل العملية', 'حدث خطأ تقني أثناء محاولة النسخ.');
@@ -271,7 +274,6 @@ export default function App() {
   const handleRestore = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -281,7 +283,6 @@ export default function App() {
         if (data.postponedSessions) setPostponedSessions(data.postponedSessions);
         if (data.semesterStart) setSemesterStart(data.semesterStart);
         if (data.appTheme) setThemeKey(data.appTheme);
-        
         addNotification('success', 'استعادة البيانات', 'تمت مزامنة كافة الملاحظات والتأجيلات من الملف المرفوع.');
       } catch (err) {
         addNotification('error', 'ملف غير صالح', 'الرجاء التأكد من اختيار ملف النسخة الاحتياطية الصحيح.');
@@ -312,7 +313,6 @@ export default function App() {
     if (!postponeModalRow) return;
     const key = `${postponeModalRow.date}_${postponeModalRow.gradeSection.replace(' (', '_').replace(')', '')}_${postponeModalRow.time}`;
     const reasonValue = tempReasonType === 'other' ? tempOtherText : REASONS_MAP[tempReasonType];
-
     setMeetingsState(prev => ({ ...prev, [key]: 'incomplete' }));
     setPostponedSessions(prev => [
       ...prev,
@@ -324,7 +324,6 @@ export default function App() {
         reasonType: tempReasonType
       }
     ]);
-    
     addNotification('warning', 'حصة مؤجلة', `تم تسجيل عدم اكتمال حصة ${postponeModalRow.gradeSection}.`);
     setPostponeModalRow(null);
   };
@@ -355,7 +354,7 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-xl font-black text-white tracking-tight group-hover:text-orange-400 transition-colors">الدفتر الذكي</h1>
-            <p className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Smart Sport Office</p>
+            <p className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Digital PE Office</p>
           </div>
         </div>
         <div className="flex-1 space-y-3">
@@ -364,12 +363,21 @@ export default function App() {
           <IconButton icon={List} label="توزيع الحصص" active={activeView === 'distribution'} onClick={() => setActiveView('distribution')} color={currentTheme.primary} />
           <IconButton icon={SettingsIcon} label="الإعدادات" active={activeView === 'settings'} onClick={() => setActiveView('settings')} color={currentTheme.primary} />
         </div>
-        <div className="mt-auto pt-6 border-t border-white/10">
-           <div className="p-4 bg-white/5 rounded-2xl border border-white/5">
-              <p className="text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-tighter">الحالة التشغيلية</p>
-              <div className="flex items-center gap-2">
-                 <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></div>
-                 <span className="text-xs font-bold text-orange-500">نشط الآن</span>
+        
+        {/* --- Signature Footer --- */}
+        <div className="mt-auto pt-6 border-t border-white/10 space-y-4">
+           <div className="p-4 bg-white/5 rounded-2xl border border-white/5 group hover:border-orange-500/30 transition-all">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-500">
+                  <User size={16} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">تصميم وإعداد</p>
+                  <p className="text-[11px] font-black text-white group-hover:text-orange-400 transition-colors">الزايز محمد الطاهر</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-[9px] text-slate-500 font-bold">
+                 <Code size={10} className="text-blue-500" /> <span>برمجة وتطوير الويب</span>
               </div>
            </div>
         </div>
@@ -403,6 +411,28 @@ export default function App() {
         <div className="pb-28">
           {activeView === 'settings' ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Profile Card for Designer */}
+              <GlassPanel className="p-8 border-t-4 border-t-orange-500 lg:col-span-2 flex flex-col md:flex-row items-center gap-8 bg-gradient-to-br from-orange-500/5 to-transparent">
+                 <div className="w-24 h-24 rounded-3xl bg-slate-800 border-2 border-orange-500/20 flex items-center justify-center shadow-2xl relative group overflow-hidden">
+                    <div className="absolute inset-0 bg-orange-500 opacity-0 group-hover:opacity-10 transition-opacity"></div>
+                    <AppIcon size={56} />
+                 </div>
+                 <div className="flex-1 text-center md:text-right">
+                    <h3 className="text-3xl font-black text-white mb-2">الزايز محمد الطاهر</h3>
+                    <div className="flex flex-wrap justify-center md:justify-start gap-3 mt-4">
+                       <span className="px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-xl text-xs font-black text-blue-400 flex items-center gap-2">
+                         <Award size={14} /> أستاذ التربية البدنية والرياضية
+                       </span>
+                       <span className="px-4 py-1.5 bg-orange-500/10 border border-orange-500/20 rounded-xl text-xs font-black text-orange-400 flex items-center gap-2">
+                         <Palette size={14} /> مصمم ومطور مواقع ويب
+                       </span>
+                    </div>
+                    <p className="text-sm text-slate-400 mt-6 leading-relaxed font-bold">
+                      تم تصميم وتطوير هذا النظام الرقمي بهدف تسهيل المهام البيداغوجية اليومية لأساتذة التربية البدنية، مع التركيز على دقة البيانات وجمالية الواجهة لتوفير تجربة مستخدم عصرية ومتميزة.
+                    </p>
+                 </div>
+              </GlassPanel>
+
               <GlassPanel className="p-8 space-y-8 border-t-4 border-t-orange-500">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xl font-black flex items-center gap-3 text-orange-400"><Database size={24} /> إدارة البيانات</h3>
@@ -508,19 +538,15 @@ export default function App() {
                         {row.topic.includes("تقويم") ? "تقويم تشخيصي" : "وحدة تعليمية"}
                       </div>
                     </div>
-                    
                     <div className="flex-1 text-right">
                       <div className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-2 mb-2">
                         <PenTool size={12} /> {row.field} | <School size={12} /> السنة {row.gradeSection}
                       </div>
-                      
                       <div className="flex items-center gap-2 mb-3">
                         <Tag size={16} className="text-amber-500" />
                         <span className="text-sm font-black text-amber-500/90 uppercase tracking-wide">نوع الحصة: {row.topic}</span>
                       </div>
-
                       <h4 className="text-2xl font-black text-white mb-4 leading-tight">{row.learnings}</h4>
-                      
                       <div className="mt-4 p-5 bg-teal-500/5 border-r-4 border-teal-500 rounded-2xl">
                         <div className="flex items-center gap-2 mb-2">
                           <BookOpen size={16} className="text-teal-400" />
@@ -528,7 +554,6 @@ export default function App() {
                         </div>
                         <p className="text-md font-bold text-teal-50/90 leading-relaxed">{row.content}</p>
                       </div>
-
                       {row.isIncomplete && (
                         <div className="mt-5 flex flex-wrap gap-3">
                           <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-red-600 text-white rounded-xl shadow-xl shadow-red-600/20 text-xs font-black animate-pulse">
@@ -537,7 +562,6 @@ export default function App() {
                         </div>
                       )}
                     </div>
-
                     <div className="flex items-center gap-5">
                        <button onClick={() => handlePostponeClick(row)} className={`p-5 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center gap-2 ${row.isIncomplete ? 'bg-red-600 border-red-500 text-white shadow-xl shadow-red-600/30' : 'bg-white/5 border-white/10 text-slate-500 hover:text-green-500 hover:border-green-500/30'}`}>
                          {row.isIncomplete ? <XCircle size={32} /> : <CheckCircle size={32} />}
@@ -548,7 +572,6 @@ export default function App() {
                        </button>
                     </div>
                   </div>
-
                   {expandedRowIndex === idx && (
                     <div className="bg-white/[0.04] border-t border-white/10 p-8 space-y-8 animate-in fade-in zoom-in-95 duration-500">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -586,7 +609,7 @@ export default function App() {
         <button onClick={() => setActiveView('settings')} className={`flex flex-col items-center gap-1.5 transition-colors ${activeView === 'settings' ? 'text-blue-500' : 'text-slate-500'}`}><SettingsIcon size={24} /><span className="text-[10px] font-black">الإعدادات</span></button>
       </nav>
 
-      {/* --- Modal: Postpone (Reschedule) --- */}
+      {/* --- Modals (Postpone and Full Record) --- */}
       {postponeModalRow && (
         <div className="fixed inset-0 z-[200] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-6 text-right animate-in fade-in duration-300">
           <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.5)]">
@@ -618,7 +641,6 @@ export default function App() {
         </div>
       )}
 
-      {/* --- Modal: Full Record Card --- */}
       {selectedRow && (
         <div className="fixed inset-0 z-[300] bg-slate-950 flex flex-col animate-in fade-in duration-300">
           <header className="p-6 border-b border-white/10 flex justify-between items-center bg-slate-900 shadow-2xl">
@@ -634,14 +656,11 @@ export default function App() {
                 <button onClick={() => setViewPdf(true)} className={`px-6 py-3 rounded-xl text-xs font-black transition-all ${viewPdf ? 'bg-blue-600 text-white shadow-xl shadow-blue-600/20' : 'bg-white/5 text-slate-400 hover:text-white'}`}>نسخة المذكرة الأصلية</button>
              </div>
           </header>
-          
           <main className="flex-1 bg-slate-950 overflow-y-auto pattern-grid">
              {!viewPdf ? (
                <div className="max-w-6xl mx-auto p-6 md:p-16 text-right">
                   <div className="bg-white text-slate-900 p-12 md:p-20 rounded-lg shadow-[0_50px_100px_rgba(0,0,0,0.3)] border-t-[12px] border-blue-600 space-y-16 relative overflow-hidden">
-                     {/* Watermark/Background Decoration */}
                      <div className="absolute top-10 left-10 opacity-[0.03] pointer-events-none rotate-12"><AppIcon size={400} /></div>
-                     
                      <div className="flex justify-between items-start border-b-2 border-slate-100 pb-12 relative">
                         <div className="text-xs font-black space-y-1 text-slate-500 uppercase">
                            <p>الميدان: <span className="text-slate-900">{selectedRow.field}</span></p>
@@ -656,7 +675,6 @@ export default function App() {
                            <p>المؤسسة: <span className="text-slate-900">{teacherInfo.school}</span></p>
                         </div>
                      </div>
-                     
                      <div className="bg-blue-50/80 p-6 rounded-3xl border-2 border-blue-100 flex items-center justify-between shadow-sm relative">
                         <div className="flex items-center gap-4">
                           <Tag size={28} className="text-blue-600" />
@@ -664,7 +682,6 @@ export default function App() {
                         </div>
                         <span className="text-2xl font-black text-blue-700 underline underline-offset-8 decoration-4 decoration-blue-200">{selectedRow.topic}</span>
                      </div>
-
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                         <div className="space-y-4">
                            <h4 className="text-sm font-black text-blue-700 uppercase flex items-center gap-2"><Target size={18}/> المورد المعرفي المبرمج:</h4>
@@ -675,14 +692,12 @@ export default function App() {
                            <p className="text-2xl leading-snug bg-slate-50 p-8 border-r-8 border-teal-600 rounded-lg font-bold shadow-sm">{selectedRow.content}</p>
                         </div>
                      </div>
-                     
                      <div className="space-y-6">
                         <h4 className="text-sm font-black text-emerald-700 uppercase flex items-center gap-2"><PenTool size={18}/> محتوى الإنجاز (المواقف التعليمية):</h4>
                         <div className="bg-emerald-50/50 p-10 border-r-8 border-emerald-600 rounded-lg shadow-sm">
                            <p className="text-xl leading-loose whitespace-pre-wrap font-bold text-slate-800">{selectedRow.teachingSituation || "يتم تنفيذ مسارات تعليمية تركز على المهارات الأساسية وتناسب الفئة العمرية."}</p>
                         </div>
                      </div>
-
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-12 border-t-2 border-slate-100 pt-12">
                         <div className="space-y-4">
                            <h4 className="text-sm font-black text-amber-700 uppercase flex items-center gap-2"><Wrench size={18}/> الوسائل البيداغوجية:</h4>
@@ -720,6 +735,18 @@ export default function App() {
                </div>
              )}
           </main>
+        </div>
+      )}
+      
+      {/* Credits Footer for Mobile */}
+      {activeView === 'settings' && (
+        <div className="md:hidden w-full p-8 border-t border-white/5 text-center bg-slate-950/50">
+           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">إعداد وتطوير</p>
+           <p className="text-lg font-black text-white mb-1">الزايز محمد الطاهر</p>
+           <div className="flex items-center justify-center gap-3 text-[10px] text-slate-400 font-bold">
+              <span className="flex items-center gap-1"><Award size={12} className="text-orange-500" /> أستاذ ت.ب.ر</span>
+              <span className="flex items-center gap-1"><Code size={12} className="text-blue-500" /> مصمم مواقع ويب</span>
+           </div>
         </div>
       )}
     </div>
