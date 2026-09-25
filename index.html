@@ -92,11 +92,67 @@
           radial-gradient(at 0% 0%, hsla(222,47%,11%,1) 0, transparent 50%), 
           radial-gradient(at 50% 0%, hsla(217,91%,60%,0.15) 0, transparent 50%), 
           radial-gradient(at 100% 0%, hsla(164,86%,41%,0.1) 0, transparent 50%);
+        transition: background-color 0.4s ease, opacity 0.4s ease;
+      }
+
+      body.light-mode {
+        background-color: #f1f5f9;
+        color: #0f172a;
+      }
+
+      body.light-mode .mesh-bg {
+        background-color: #f8fafc;
+        background-image: 
+          radial-gradient(at 0% 0%, hsla(210, 40%, 96%, 1) 0, transparent 50%), 
+          radial-gradient(at 50% 0%, hsla(217, 91%, 60%, 0.08) 0, transparent 50%), 
+          radial-gradient(at 100% 0%, hsla(164, 86%, 41%, 0.05) 0, transparent 50%);
+      }
+
+      body.black-mode {
+        background-color: #000000;
+        color: #ffffff;
+      }
+
+      body.black-mode .mesh-bg {
+        background-color: #000000;
+        background-image: 
+          radial-gradient(at 50% 0%, rgba(30, 41, 59, 0.25) 0, transparent 60%);
       }
 
       ::-webkit-scrollbar { width: 8px; }
       ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
       ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+      body.light-mode ::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); }
+      body.light-mode ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 10px; }
+
+      @media print {
+        @page {
+          size: A4 portrait;
+          margin: 8mm;
+        }
+        body {
+          background: #ffffff !important;
+          color: #000000 !important;
+        }
+        nav, header, .no-print, #splash-screen, .mesh-bg {
+          display: none !important;
+        }
+        main {
+          padding: 0 !important;
+          margin: 0 !important;
+          overflow: visible !important;
+          max-width: 100% !important;
+        }
+        #printable-daily-sheet {
+          box-shadow: none !important;
+          border: none !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          transform: none !important;
+        }
+      }
     </style>
   <script type="importmap">
 {

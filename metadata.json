@@ -1,5 +1,6 @@
 {
   "name": "الدفتر اليومي الذكي",
   "description": "تطبيق ويب مساعد للمعلم لملء الدفتر اليومي أوتوماتيكياً بناءً على التوزيع الأسبوعي وخطط الدروس.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": []
 }

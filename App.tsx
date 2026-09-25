@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   User, 
@@ -19,7 +18,6 @@ import {
   Palette,
   ChevronDown,
   ExternalLink,
-  FileSearch,
   AlertCircle,
   ChevronRight,
   ChevronLeft,
@@ -29,14 +27,26 @@ import {
   ClipboardList,
   Download,
   Upload,
-  RefreshCw,
   Database,
   Tag,
-  Bell,
   Info,
   Code,
   Award,
-  Globe
+  Sun,
+  Moon,
+  Check,
+  Sparkles,
+  Monitor,
+  Printer,
+  ZoomIn,
+  ZoomOut,
+  PieChart as PieChartIcon,
+  TrendingUp,
+  CheckCircle2,
+  ChevronUp,
+  BarChart3,
+  Percent,
+  Activity
 } from 'lucide-react';
 import { DailyRecordRow, TeacherInfo, WeeklySlot, PostponeReason, PostponedSession } from './types';
 import { WEEKLY_SCHEDULE, FIELD_NAME, ALL_LESSONS } from './constants';
@@ -80,46 +90,192 @@ interface AppNotification {
   title: string;
 }
 
-const THEMES = {
-  ocean: { name: "محيط عميق", primary: "#2563eb", bg: "#0f172a", gradient: "linear-gradient(180deg, #0f172a 0%, #1e293b 100%)" },
-  emerald: { name: "غابة الزمرد", primary: "#10b981", bg: "#061f1a", gradient: "linear-gradient(180deg, #061f1a 0%, #064e3b 100%)" },
-  royal: { name: "بنفسجي ملكي", primary: "#8b5cf6", bg: "#1e1b4b", gradient: "linear-gradient(180deg, #1e1b4b 0%, #312e81 100%)" },
-  sunset: { name: "غسق دافئ", primary: "#f43f5e", bg: "#1a0f0f", gradient: "linear-gradient(180deg, #1a0f0f 0%, #450a0a 100%)" }
+interface ThemeDef {
+  id: string;
+  name: string;
+  description: string;
+  primary: string;
+  bg: string;
+  isLight: boolean;
+  accent: string;
+  badge: string;
+}
+
+const THEMES: Record<string, ThemeDef> = {
+  white: { 
+    id: "white",
+    name: "ثيم أبيض (نهاري)", 
+    description: "واجهة بيضاء ناصعة ومريحة للقراءة والطباعة النهارية", 
+    primary: "#2563eb", 
+    bg: "#f8fafc", 
+    isLight: true,
+    accent: "#f97316",
+    badge: "فاتح نهاري"
+  },
+  black: { 
+    id: "black",
+    name: "ثيم أسود (داكن نقي)", 
+    description: "واجهة سوداء داكنة وعميقة وموفرة للطاقة", 
+    primary: "#38bdf8", 
+    bg: "#000000", 
+    isLight: false,
+    accent: "#f97316",
+    badge: "داكن نقي"
+  },
+  ocean: { 
+    id: "ocean",
+    name: "محيط أزرق (كحلي)", 
+    description: "السمة الكلاسيكية الزرقاء الداكنة", 
+    primary: "#3b82f6", 
+    bg: "#0f172a", 
+    isLight: false,
+    accent: "#f97316",
+    badge: "كلاسيكي"
+  },
+  emerald: { 
+    id: "emerald",
+    name: "غابة الزمرد (أخضر)", 
+    description: "سمة خضراء زمردية هادئة تعزز التركيز", 
+    primary: "#10b981", 
+    bg: "#061f1a", 
+    isLight: false,
+    accent: "#14b8a6",
+    badge: "طبيعي"
+  },
+  royal: { 
+    id: "royal",
+    name: "بنفسجي ملكي", 
+    description: "سمة ملكية فخمة بألوان البنفسج الراقية", 
+    primary: "#8b5cf6", 
+    bg: "#1e1b4b", 
+    isLight: false,
+    accent: "#a855f7",
+    badge: "ملكي"
+  },
+  sunset: { 
+    id: "sunset",
+    name: "غسق دافئ", 
+    description: "سمة بلون الغسق الدافئ مع لمسات برتقالية", 
+    primary: "#f43f5e", 
+    bg: "#1a0f0f", 
+    isLight: false,
+    accent: "#fb923c",
+    badge: "دافئ"
+  }
 };
 
+type ThemeKey = keyof typeof THEMES;
+
 const REASONS_MAP: Record<PostponeReason, string> = {
-  half_day: "تعليمة نصف يوم",
+  half_day: "نصف يوم تعليمي",
   arbitration: "طلب تحكيم",
   competition: "طلب منافسة رياضية",
   other: "سبب آخر"
 };
 
-type ThemeKey = keyof typeof THEMES;
+const GlassPanel = ({ 
+  children, 
+  className = "", 
+  id,
+  isLight = false,
+  isBlack = false
+}: { 
+  children?: React.ReactNode, 
+  className?: string, 
+  id?: string, 
+  key?: React.Key,
+  isLight?: boolean,
+  isBlack?: boolean
+}) => {
+  const baseClasses = isLight 
+    ? 'bg-white border border-slate-200/90 text-slate-800 shadow-md shadow-slate-200/40' 
+    : isBlack 
+      ? 'bg-[#0c0c0e] border border-zinc-800 text-white shadow-2xl'
+      : 'bg-white/5 border border-white/10 text-white shadow-xl backdrop-blur-sm';
 
-// Fix: Add key to prop definition to avoid TypeScript error when rendering lists of GlassPanel
-const GlassPanel = ({ children, className = "", id }: { children?: React.ReactNode, className?: string, id?: string, key?: React.Key }) => (
-  <div id={id} className={`bg-white/5 border border-white/10 rounded-[2rem] p-6 shadow-xl backdrop-blur-sm ${className}`}>{children}</div>
-);
+  return (
+    <div id={id} className={`${baseClasses} rounded-[2rem] p-6 transition-all duration-300 ${className}`}>
+      {children}
+    </div>
+  );
+};
 
-const IconButton = ({ icon: Icon, onClick, active = false, label = "", color }: { icon: React.ElementType, onClick: () => void, active?: boolean, label?: string, color: string }) => (
-  <button
-    onClick={onClick}
-    className={`flex items-center gap-4 w-full p-4 rounded-xl transition-all duration-300 ${active ? 'bg-white/10 border border-white/20' : 'text-slate-400 hover:bg-white/5'}`}
-    style={active ? { borderColor: `${color}55`, color: color } : {}}
-  >
-    <Icon size={20} />
-    <span className="text-sm font-bold">{label}</span>
-  </button>
-);
+const IconButton = ({ 
+  icon: Icon, 
+  onClick, 
+  active = false, 
+  label = "", 
+  color,
+  isLight = false,
+  isBlack = false
+}: { 
+  icon: React.ElementType, 
+  onClick: () => void, 
+  active?: boolean, 
+  label?: string, 
+  color: string,
+  isLight?: boolean,
+  isBlack?: boolean
+}) => {
+  let styleClasses = '';
+  if (active) {
+    styleClasses = isLight 
+      ? 'bg-blue-50/90 border-2 font-black shadow-sm' 
+      : isBlack
+        ? 'bg-zinc-900 border border-zinc-700 font-black shadow-lg'
+        : 'bg-white/10 border border-white/20 font-black';
+  } else {
+    styleClasses = isLight
+      ? 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+      : 'text-slate-400 hover:bg-white/5';
+  }
 
-const ModernField = ({ label, icon: Icon, value, onChange, type = "text", color }: { label: string, icon: React.ElementType, value: string, onChange: (v: string) => void, type?: string, color: string }) => (
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-4 w-full p-4 rounded-xl transition-all duration-300 ${styleClasses}`}
+      style={active ? { borderColor: isLight ? `${color}` : `${color}77`, color: color } : {}}
+    >
+      <Icon size={20} />
+      <span className="text-sm font-bold">{label}</span>
+    </button>
+  );
+};
+
+const ModernField = ({ 
+  label, 
+  icon: Icon, 
+  value, 
+  onChange, 
+  type = "text", 
+  color,
+  isLight = false,
+  isBlack = false
+}: { 
+  label: string, 
+  icon: React.ElementType, 
+  value: string, 
+  onChange: (v: string) => void, 
+  type?: string, 
+  color: string,
+  isLight?: boolean,
+  isBlack?: boolean
+}) => (
   <div className="flex flex-col gap-2 w-full">
-    <label className="text-[10px] font-black text-slate-500 mr-2 flex items-center gap-2 uppercase">
-      <Icon size={12} style={{ color }} /> {label}
+    <label className={`text-[11px] font-black mr-2 flex items-center gap-2 uppercase ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+      <Icon size={13} style={{ color }} /> {label}
     </label>
     <input 
-      type={type} value={value} onChange={(e) => onChange(e.target.value)}
-      className="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl outline-none text-sm text-white focus:border-blue-500 focus:bg-white/[0.08] transition-all"
+      type={type} 
+      value={value} 
+      onChange={(e) => onChange(e.target.value)}
+      className={`w-full px-5 py-4 rounded-xl outline-none text-sm font-bold transition-all ${
+        isLight 
+          ? 'bg-slate-50 border border-slate-300 text-slate-900 focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-100 shadow-sm'
+          : isBlack
+            ? 'bg-zinc-900/90 border border-zinc-700 text-white focus:border-sky-400 focus:bg-zinc-800'
+            : 'bg-white/5 border border-white/10 text-white focus:border-blue-500 focus:bg-white/[0.08]'
+      }`}
     />
   </div>
 );
@@ -155,27 +311,260 @@ const Toast = ({ notification, onClose }: { notification: AppNotification, onClo
   );
 };
 
+// --- Interactive SVG Donut Pie Chart Component ---
+interface DonutPieChartProps {
+  completed: number;
+  postponed: number;
+  size?: number;
+  isLight?: boolean;
+  isBlack?: boolean;
+}
+
+const DonutPieChart = ({
+  completed,
+  postponed,
+  size = 170,
+  isLight = false,
+  isBlack = false
+}: DonutPieChartProps) => {
+  const [hoveredSlice, setHoveredSlice] = useState<'completed' | 'postponed' | null>(null);
+  const total = completed + postponed;
+  const completedRate = total > 0 ? (completed / total) * 100 : 0;
+  const postponedRate = total > 0 ? (postponed / total) * 100 : 0;
+
+  const cx = 85;
+  const cy = 85;
+  const outerR = 68;
+  const innerR = 46;
+
+  const polarToCartesian = (centerX: number, centerY: number, radius: number, angleInDegrees: number) => {
+    const angleInRadians = ((angleInDegrees - 90) * Math.PI) / 180.0;
+    return {
+      x: centerX + radius * Math.cos(angleInRadians),
+      y: centerY + radius * Math.sin(angleInRadians)
+    };
+  };
+
+  const describeDonutSlice = (startAngle: number, endAngle: number, expand: boolean) => {
+    const rOut = expand ? outerR + 4 : outerR;
+    const rIn = expand ? innerR - 2 : innerR;
+    const span = endAngle - startAngle;
+    if (span <= 0) return '';
+    const adjustedEnd = span >= 359.99 ? startAngle + 359.99 : endAngle;
+    const p1 = polarToCartesian(cx, cy, rOut, startAngle);
+    const p2 = polarToCartesian(cx, cy, rOut, adjustedEnd);
+    const p3 = polarToCartesian(cx, cy, rIn, adjustedEnd);
+    const p4 = polarToCartesian(cx, cy, rIn, startAngle);
+    const largeArc = adjustedEnd - startAngle > 180 ? 1 : 0;
+
+    return [
+      `M ${p1.x} ${p1.y}`,
+      `A ${rOut} ${rOut} 0 ${largeArc} 1 ${p2.x} ${p2.y}`,
+      `L ${p3.x} ${p3.y}`,
+      `A ${rIn} ${rIn} 0 ${largeArc} 0 ${p4.x} ${p4.y}`,
+      'Z'
+    ].join(' ');
+  };
+
+  const gap = total > 1 && completed > 0 && postponed > 0 ? 3 : 0;
+  const completedAngle = total > 0 ? (completed / total) * 360 : 0;
+
+  const completedPath = completed > 0
+    ? describeDonutSlice(
+        gap / 2,
+        postponed > 0 ? completedAngle - gap / 2 : 360,
+        hoveredSlice === 'completed'
+      )
+    : '';
+
+  const postponedPath = postponed > 0
+    ? describeDonutSlice(
+        completed > 0 ? completedAngle + gap / 2 : 0,
+        completed > 0 ? 360 - gap / 2 : 360,
+        hoveredSlice === 'postponed'
+      )
+    : '';
+
+  const roundedRate = Math.round(completedRate);
+
+  return (
+    <div className="relative flex flex-col items-center select-none">
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 170 170"
+        className="transition-transform duration-300 drop-shadow-lg overflow-visible"
+      >
+        <defs>
+          <linearGradient id="compGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#10b981" />
+            <stop offset="100%" stopColor="#059669" />
+          </linearGradient>
+          <linearGradient id="postGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#f87171" />
+            <stop offset="100%" stopColor="#ef4444" />
+          </linearGradient>
+          <filter id="glowComp" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#10b981" floodOpacity="0.5" />
+          </filter>
+          <filter id="glowPost" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#ef4444" floodOpacity="0.5" />
+          </filter>
+        </defs>
+
+        {/* Empty track */}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={(outerR + innerR) / 2}
+          fill="none"
+          stroke={isLight ? '#e2e8f0' : isBlack ? '#1e1e24' : 'rgba(255, 255, 255, 0.08)'}
+          strokeWidth={outerR - innerR}
+        />
+
+        {total === 0 && (
+          <text
+            x={cx}
+            y={cy + 4}
+            textAnchor="middle"
+            fill={isLight ? '#94a3b8' : '#64748b'}
+            className="text-[11px] font-bold"
+          >
+            لا توجد حصص
+          </text>
+        )}
+
+        {/* Completed Slice */}
+        {completedPath && (
+          <path
+            d={completedPath}
+            fill="url(#compGrad)"
+            filter={hoveredSlice === 'completed' ? 'url(#glowComp)' : undefined}
+            className="transition-all duration-300 cursor-pointer"
+            onMouseEnter={() => setHoveredSlice('completed')}
+            onMouseLeave={() => setHoveredSlice(null)}
+          >
+            <title>{`دروس منجزة: ${completed} (${completedRate.toFixed(1)}%)`}</title>
+          </path>
+        )}
+
+        {/* Postponed Slice */}
+        {postponedPath && (
+          <path
+            d={postponedPath}
+            fill="url(#postGrad)"
+            filter={hoveredSlice === 'postponed' ? 'url(#glowPost)' : undefined}
+            className="transition-all duration-300 cursor-pointer"
+            onMouseEnter={() => setHoveredSlice('postponed')}
+            onMouseLeave={() => setHoveredSlice(null)}
+          >
+            <title>{`دروس مؤجلة: ${postponed} (${postponedRate.toFixed(1)}%)`}</title>
+          </path>
+        )}
+
+        {/* Center Label */}
+        {total > 0 && (
+          <g className="pointer-events-none">
+            <text
+              x={cx}
+              y={cy - 2}
+              textAnchor="middle"
+              className={`font-black ${isLight ? 'fill-slate-900' : 'fill-white'}`}
+              style={{ fontSize: roundedRate === 100 ? '24px' : '26px', fontFamily: "'Cairo', sans-serif" }}
+            >
+              {hoveredSlice === 'completed' 
+                ? `${completed}` 
+                : hoveredSlice === 'postponed' 
+                  ? `${postponed}` 
+                  : `${roundedRate}%`}
+            </text>
+            <text
+              x={cx}
+              y={cy + 16}
+              textAnchor="middle"
+              className="text-[9px] font-black fill-slate-400"
+              style={{ fontFamily: "'Cairo', sans-serif" }}
+            >
+              {hoveredSlice === 'completed' 
+                ? 'دروس منجزة' 
+                : hoveredSlice === 'postponed' 
+                  ? 'دروس مؤجلة' 
+                  : 'نسبة الإنجاز'}
+            </text>
+          </g>
+        )}
+      </svg>
+
+      {/* Dynamic hover badge */}
+      {hoveredSlice && (
+        <div className={`mt-2 px-3 py-1 rounded-full text-[10px] font-black shadow-lg transition-all animate-in fade-in zoom-in-95 ${
+          hoveredSlice === 'completed' 
+            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+            : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+        }`}>
+          {hoveredSlice === 'completed'
+            ? `المنجزة: ${completed} (${completedRate.toFixed(0)}%)`
+            : `المؤجلة: ${postponed} (${postponedRate.toFixed(0)}%)`}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function App() {
-  const [activeView, setActiveView] = useState<'record' | 'settings' | 'distribution' | 'notes'>('record');
+  const [activeView, setActiveView] = useState<'record' | 'desktop' | 'settings' | 'distribution' | 'notes'>('record');
+  const [sheetZoom, setSheetZoom] = useState<number>(100);
+  const [showSignatureNames, setShowSignatureNames] = useState<boolean>(true);
+  const [academicYear, setAcademicYear] = useState<string>("2025 / 2026");
   const [expandedRowIndex, setExpandedRowIndex] = useState<number | null>(null);
   const [selectedRow, setSelectedRow] = useState<DailyRecordRow | null>(null);
   const [viewPdf, setViewPdf] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   
+  const [dashboardScope, setDashboardScope] = useState<'week' | 'today'>('week');
+  const [isDashboardOpen, setIsDashboardOpen] = useState<boolean>(() => {
+    const saved = localStorage.getItem('dashboard_open');
+    return saved !== null ? saved === 'true' : true;
+  });
+
   const [postponeModalRow, setPostponeModalRow] = useState<DailyRecordRow | null>(null);
   const [tempReasonType, setTempReasonType] = useState<PostponeReason>('half_day');
   const [tempOtherText, setTempOtherText] = useState('');
 
-  const [themeKey, setThemeKey] = useState<ThemeKey>(() => (localStorage.getItem('app_theme') as ThemeKey) || 'ocean');
-  const currentTheme = THEMES[themeKey];
+  const [themeKey, setThemeKey] = useState<ThemeKey>(() => {
+    const saved = localStorage.getItem('app_theme');
+    if (saved && saved in THEMES) return saved as ThemeKey;
+    return 'ocean';
+  });
+
+  const currentTheme = THEMES[themeKey] || THEMES.ocean;
+  const isLight = currentTheme.isLight;
+  const isBlack = currentTheme.id === 'black';
 
   const [semesterStart, setSemesterStart] = useState<string>(() => localStorage.getItem('semester_start') || "2026-01-04");
   const [targetDate, setTargetDate] = useState<string>(new Date().toISOString().split('T')[0]);
   
+  // Default teacher name is "الزايز محمد الطاهر", or whatever name is configured in settings
   const [teacherInfo, setTeacherInfo] = useState<TeacherInfo>(() => {
     const saved = localStorage.getItem('teacher_info');
-    return saved ? JSON.parse(saved) : { name: "الأستاذ الفاضل", school: "ابتدائية العربي بن مهيدي", inspector: "السيد المفتش", manager: "السيد المدير" };
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (!parsed.name || parsed.name === "الأستاذ الفاضل") {
+          parsed.name = "الزايز محمد الطاهر";
+        }
+        return parsed;
+      } catch {
+        // fallback
+      }
+    }
+    return { 
+      name: "الزايز محمد الطاهر", 
+      school: "ابتدائية العربي بن مهيدي", 
+      inspector: "السيد المفتش", 
+      manager: "السيد المدير" 
+    };
   });
 
   const [meetingsState, setMeetingsState] = useState<Record<string, 'completed' | 'incomplete'>>(() => {
@@ -183,9 +572,19 @@ export default function App() {
     return saved ? JSON.parse(saved) : {};
   });
 
+  // Automatically normalize any previous "تعليمة نصف يوم" to "نصف يوم تعليمي"
   const [postponedSessions, setPostponedSessions] = useState<PostponedSession[]>(() => {
     const saved = localStorage.getItem('postponed_sessions');
-    return saved ? JSON.parse(saved) : [];
+    if (!saved) return [];
+    try {
+      const list = JSON.parse(saved);
+      return list.map((item: PostponedSession) => ({
+        ...item,
+        reason: item.reason === "تعليمة نصف يوم" ? "نصف يوم تعليمي" : item.reason
+      }));
+    } catch {
+      return [];
+    }
   });
 
   useEffect(() => {
@@ -205,7 +604,19 @@ export default function App() {
     localStorage.setItem('app_theme', themeKey);
     localStorage.setItem('meetings_state', JSON.stringify(meetingsState));
     localStorage.setItem('postponed_sessions', JSON.stringify(postponedSessions));
+    localStorage.setItem('dashboard_open', String(isDashboardOpen));
+
     document.body.style.backgroundColor = currentTheme.bg;
+    if (currentTheme.isLight) {
+      document.body.classList.add('light-mode');
+      document.body.classList.remove('black-mode');
+    } else if (currentTheme.id === 'black') {
+      document.body.classList.add('black-mode');
+      document.body.classList.remove('light-mode');
+    } else {
+      document.body.classList.remove('light-mode');
+      document.body.classList.remove('black-mode');
+    }
   }, [semesterStart, teacherInfo, themeKey, currentTheme, meetingsState, postponedSessions]);
 
   const addNotification = (type: NotificationType, title: string, message: string) => {
@@ -247,10 +658,91 @@ export default function App() {
     });
   }, [targetDate, semesterStart, meetingsState]);
 
+  // --- Weekly & Today Statistics for Dashboard & Pie Chart ---
+  const weekStats = useMemo(() => {
+    const current = new Date(targetDate);
+    const day = current.getDay(); // 0 is Sunday
+    const sunday = new Date(current);
+    sunday.setDate(current.getDate() - day);
+    sunday.setHours(0, 0, 0, 0);
+
+    const thursday = new Date(sunday);
+    thursday.setDate(sunday.getDate() + 4);
+
+    // School days with classes: Sunday (0), Monday (1), Wednesday (3), Thursday (4)
+    const schoolDays = [0, 1, 3, 4].map(dayIdx => {
+      const d = new Date(sunday);
+      d.setDate(sunday.getDate() + dayIdx);
+      const dateFormatted = formatDate(d);
+      const dayName = getDayName(d);
+      const dateISO = d.toISOString().split('T')[0];
+
+      const daySlots = WEEKLY_SCHEDULE.filter(s => s.dayIndex === dayIdx);
+      const slotsWithStatus = daySlots.map(s => {
+        const key = `${dateFormatted}_${s.grade}_${s.section}_${s.time}`;
+        const isIncomplete = meetingsState[key] === 'incomplete';
+        return {
+          slot: s,
+          key,
+          isIncomplete,
+          dateFormatted
+        };
+      });
+
+      const total = slotsWithStatus.length;
+      const postponed = slotsWithStatus.filter(s => s.isIncomplete).length;
+      const completed = Math.max(0, total - postponed);
+      const isSelected = targetDate === dateISO;
+
+      return {
+        dayIdx,
+        dayName,
+        date: d,
+        dateFormatted,
+        dateISO,
+        slots: slotsWithStatus,
+        total,
+        completed,
+        postponed,
+        isSelected
+      };
+    });
+
+    const totalSlots = schoolDays.reduce((acc, d) => acc + d.total, 0);
+    const totalPostponed = schoolDays.reduce((acc, d) => acc + d.postponed, 0);
+    const totalCompleted = Math.max(0, totalSlots - totalPostponed);
+    const rate = totalSlots > 0 ? Math.round((totalCompleted / totalSlots) * 100) : 100;
+
+    return {
+      sunday,
+      thursday,
+      sundayFormatted: formatDate(sunday),
+      thursdayFormatted: formatDate(thursday),
+      schoolDays,
+      totalSlots,
+      totalCompleted,
+      totalPostponed,
+      rate
+    };
+  }, [targetDate, meetingsState]);
+
+  const todayStats = useMemo(() => {
+    const total = rows.length;
+    const postponed = rows.filter(r => r.isIncomplete).length;
+    const completed = Math.max(0, total - postponed);
+    const rate = total > 0 ? Math.round((completed / total) * 100) : 100;
+    return {
+      total,
+      completed,
+      postponed,
+      rate
+    };
+  }, [rows]);
+
   const handleBackup = () => {
     try {
       const backupData = {
-        version: "1.1",
+        version: "1.2",
         teacherInfo,
         meetingsState,
         postponedSessions,
@@ -266,7 +758,7 @@ export default function App() {
       link.click();
       URL.revokeObjectURL(url);
       addNotification('success', 'نجاح النسخ الاحتياطي', 'تم حفظ بياناتك وملاحظاتك بأمان في ملف خارجي.');
-    } catch (err) {
+    } catch {
       addNotification('error', 'فشل العملية', 'حدث خطأ تقني أثناء محاولة النسخ.');
     }
   };
@@ -280,11 +772,18 @@ export default function App() {
         const data = JSON.parse(e.target?.result as string);
         if (data.teacherInfo) setTeacherInfo(data.teacherInfo);
         if (data.meetingsState) setMeetingsState(data.meetingsState);
-        if (data.postponedSessions) setPostponedSessions(data.postponedSessions);
+        if (data.postponedSessions) {
+          // ensure reason normalization on restore
+          const list = data.postponedSessions.map((item: PostponedSession) => ({
+            ...item,
+            reason: item.reason === "تعليمة نصف يوم" ? "نصف يوم تعليمي" : item.reason
+          }));
+          setPostponedSessions(list);
+        }
         if (data.semesterStart) setSemesterStart(data.semesterStart);
-        if (data.appTheme) setThemeKey(data.appTheme);
+        if (data.appTheme && data.appTheme in THEMES) setThemeKey(data.appTheme);
         addNotification('success', 'استعادة البيانات', 'تمت مزامنة كافة الملاحظات والتأجيلات من الملف المرفوع.');
-      } catch (err) {
+      } catch {
         addNotification('error', 'ملف غير صالح', 'الرجاء التأكد من اختيار ملف النسخة الاحتياطية الصحيح.');
       }
     };
@@ -324,7 +823,7 @@ export default function App() {
         reasonType: tempReasonType
       }
     ]);
-    addNotification('warning', 'حصة مؤجلة', `تم تسجيل عدم اكتمال حصة ${postponeModalRow.gradeSection}.`);
+    addNotification('warning', 'حصة مؤجلة', `تم تسجيل عدم اكتمال حصة ${postponeModalRow.gradeSection} بسبب: ${reasonValue}.`);
     setPostponeModalRow(null);
   };
 
@@ -335,7 +834,9 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row overflow-hidden bg-slate-900" style={{ color: '#fff' }}>
+    <div className={`min-h-screen flex flex-col md:flex-row overflow-hidden transition-colors duration-400 ${
+      isLight ? 'bg-slate-100 text-slate-800' : isBlack ? 'bg-black text-white' : 'bg-slate-900 text-white'
+    }`}>
       
       {/* --- Notification Overlays --- */}
       <div className="fixed top-8 right-8 z-[999] flex flex-col gap-3 pointer-events-none">
@@ -347,37 +848,52 @@ export default function App() {
       </div>
 
       {/* --- Sidebar (Navigation) --- */}
-      <nav className="hidden md:flex flex-col w-72 bg-slate-950/50 border-l border-white/10 p-6 z-50">
+      <nav className={`hidden md:flex flex-col w-72 p-6 z-50 transition-colors duration-300 ${
+        isLight 
+          ? 'bg-white border-l border-slate-200 shadow-sm' 
+          : isBlack 
+            ? 'bg-[#09090b] border-l border-zinc-800' 
+            : 'bg-slate-950/50 border-l border-white/10'
+      }`}>
         <div className="flex items-center gap-4 mb-12 group cursor-pointer">
           <div className="p-3 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 shadow-xl shadow-orange-600/20 ring-4 ring-orange-500/10 group-hover:scale-110 transition-transform duration-500">
             <AppIcon size={32} />
           </div>
           <div>
-            <h1 className="text-xl font-black text-white tracking-tight group-hover:text-orange-400 transition-colors">الدفتر الذكي</h1>
+            <h1 className={`text-xl font-black tracking-tight group-hover:text-orange-500 transition-colors ${
+              isLight ? 'text-slate-900' : 'text-white'
+            }`}>الدفتر الذكي</h1>
             <p className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Digital PE Office</p>
           </div>
         </div>
         <div className="flex-1 space-y-3">
-          <IconButton icon={FileText} label="جدول اليوم" active={activeView === 'record'} onClick={() => setActiveView('record')} color={currentTheme.primary} />
-          <IconButton icon={MessageSquare} label="الملاحظات" active={activeView === 'notes'} onClick={() => setActiveView('notes')} color={currentTheme.primary} />
-          <IconButton icon={List} label="توزيع الحصص" active={activeView === 'distribution'} onClick={() => setActiveView('distribution')} color={currentTheme.primary} />
-          <IconButton icon={SettingsIcon} label="الإعدادات" active={activeView === 'settings'} onClick={() => setActiveView('settings')} color={currentTheme.primary} />
+          <IconButton icon={FileText} label="جدول اليوم" active={activeView === 'record'} onClick={() => setActiveView('record')} color={currentTheme.primary} isLight={isLight} isBlack={isBlack} />
+          <IconButton icon={Monitor} label="عرض على جهاز الكمبيوتر" active={activeView === 'desktop'} onClick={() => setActiveView('desktop')} color={currentTheme.primary} isLight={isLight} isBlack={isBlack} />
+          <IconButton icon={MessageSquare} label="الملاحظات" active={activeView === 'notes'} onClick={() => setActiveView('notes')} color={currentTheme.primary} isLight={isLight} isBlack={isBlack} />
+          <IconButton icon={List} label="توزيع الحصص" active={activeView === 'distribution'} onClick={() => setActiveView('distribution')} color={currentTheme.primary} isLight={isLight} isBlack={isBlack} />
+          <IconButton icon={SettingsIcon} label="الإعدادات والثيمات" active={activeView === 'settings'} onClick={() => setActiveView('settings')} color={currentTheme.primary} isLight={isLight} isBlack={isBlack} />
         </div>
         
         {/* --- Signature Footer --- */}
-        <div className="mt-auto pt-6 border-t border-white/10 space-y-4">
-           <div className="p-4 bg-white/5 rounded-2xl border border-white/5 group hover:border-orange-500/30 transition-all">
+        <div className={`mt-auto pt-6 border-t space-y-4 ${isLight ? 'border-slate-200' : 'border-white/10'}`}>
+           <div className={`p-4 rounded-2xl border transition-all ${
+             isLight 
+               ? 'bg-slate-50 border-slate-200 hover:border-orange-400/50' 
+               : 'bg-white/5 border-white/5 hover:border-orange-500/30'
+           }`}>
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-500">
+                <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-500 font-black">
                   <User size={16} />
                 </div>
                 <div>
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">تصميم وإعداد</p>
-                  <p className="text-[11px] font-black text-white group-hover:text-orange-400 transition-colors">الزايز محمد الطاهر</p>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">أستاذ المادة</p>
+                  <p className={`text-[12px] font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                    {teacherInfo.name || "الزايز محمد الطاهر"}
+                  </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 text-[9px] text-slate-500 font-bold">
-                 <Code size={10} className="text-blue-500" /> <span>برمجة وتطوير الويب</span>
+              <div className="flex items-center gap-2 text-[9px] text-slate-500 font-bold border-t pt-2 mt-2 border-slate-200/50">
+                 <Code size={10} className="text-blue-500" /> <span>تصميم وبرمجة: الزايز محمد الطاهر</span>
               </div>
            </div>
         </div>
@@ -387,23 +903,44 @@ export default function App() {
       <main className="flex-1 overflow-y-auto px-6 py-8 md:px-12 md:py-10 space-y-10">
         <header className="flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-5">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center bg-slate-800 border border-white/10 shadow-lg group hover:border-orange-500/50 transition-colors">
+            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border shadow-lg group hover:border-orange-500/50 transition-colors ${
+              isLight ? 'bg-white border-slate-200' : 'bg-slate-800 border-white/10'
+            }`}>
               <AppIcon size={40} />
             </div>
             <div>
-              <h2 className="text-2xl font-black text-white">{teacherInfo.name}</h2>
-              <p className="text-slate-400 text-sm flex items-center gap-1"><School size={14} className="text-orange-500" /> {teacherInfo.school}</p>
+              <div className="flex items-center gap-3">
+                <h2 className={`text-2xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  {teacherInfo.name || "الزايز محمد الطاهر"}
+                </h2>
+                <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-orange-500/10 text-orange-500 font-black border border-orange-500/20">
+                  أستاذ ت.ب.ر
+                </span>
+              </div>
+              <p className={`text-sm flex items-center gap-1.5 mt-0.5 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                <School size={14} className="text-orange-500" /> {teacherInfo.school}
+              </p>
             </div>
           </div>
           
-          {activeView === 'record' && (
-            <div className="flex items-center gap-2 bg-white/5 p-1.5 rounded-2xl border border-white/10 shadow-inner">
-              <button onClick={() => changeDay(-1)} className="p-3 hover:bg-white/10 rounded-xl transition-colors text-slate-400"><ChevronRight size={24} /></button>
+          {(activeView === 'record' || activeView === 'desktop') && (
+            <div className={`flex items-center gap-2 p-1.5 rounded-2xl border shadow-inner ${
+              isLight ? 'bg-white border-slate-200 shadow-slate-200/50' : 'bg-white/5 border-white/10'
+            }`}>
+              <button onClick={() => changeDay(-1)} className={`p-3 rounded-xl transition-colors ${
+                isLight ? 'hover:bg-slate-100 text-slate-600' : 'hover:bg-white/10 text-slate-400'
+              }`} title="اليوم السابق">
+                <ChevronRight size={24} />
+              </button>
               <div className="text-center min-w-[160px] px-2">
-                <p className="text-[9px] font-black text-orange-400 uppercase tracking-widest mb-0.5">{getDayName(new Date(targetDate))}</p>
-                <p className="text-sm font-black">{formatDate(new Date(targetDate))}</p>
+                <p className="text-[9px] font-black text-orange-500 uppercase tracking-widest mb-0.5">{getDayName(new Date(targetDate))}</p>
+                <p className={`text-sm font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>{formatDate(new Date(targetDate))}</p>
               </div>
-              <button onClick={() => changeDay(1)} className="p-3 hover:bg-white/10 rounded-xl transition-colors text-slate-400"><ChevronLeft size={24} /></button>
+              <button onClick={() => changeDay(1)} className={`p-3 rounded-xl transition-colors ${
+                isLight ? 'hover:bg-slate-100 text-slate-600' : 'hover:bg-white/10 text-slate-400'
+              }`} title="اليوم التالي">
+                <ChevronLeft size={24} />
+              </button>
             </div>
           )}
         </header>
@@ -411,42 +948,248 @@ export default function App() {
         <div className="pb-28">
           {activeView === 'settings' ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Profile Card for Designer */}
-              <GlassPanel className="p-8 border-t-4 border-t-orange-500 lg:col-span-2 flex flex-col md:flex-row items-center gap-8 bg-gradient-to-br from-orange-500/5 to-transparent">
-                 <div className="w-24 h-24 rounded-3xl bg-slate-800 border-2 border-orange-500/20 flex items-center justify-center shadow-2xl relative group overflow-hidden">
+              
+              {/* Profile Card showing current teacher name */}
+              <GlassPanel isLight={isLight} isBlack={isBlack} className="p-8 border-t-4 border-t-orange-500 lg:col-span-2 flex flex-col md:flex-row items-center gap-8 bg-gradient-to-br from-orange-500/5 to-transparent">
+                 <div className={`w-24 h-24 rounded-3xl ${isLight ? 'bg-orange-50 border-2 border-orange-200' : 'bg-slate-800 border-2 border-orange-500/20'} flex items-center justify-center shadow-2xl relative group overflow-hidden`}>
                     <div className="absolute inset-0 bg-orange-500 opacity-0 group-hover:opacity-10 transition-opacity"></div>
                     <AppIcon size={56} />
                  </div>
                  <div className="flex-1 text-center md:text-right">
-                    <h3 className="text-3xl font-black text-white mb-2">الزايز محمد الطاهر</h3>
+                    <h3 className={`text-3xl font-black mb-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                      {teacherInfo.name || "الزايز محمد الطاهر"}
+                    </h3>
                     <div className="flex flex-wrap justify-center md:justify-start gap-3 mt-4">
-                       <span className="px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-xl text-xs font-black text-blue-400 flex items-center gap-2">
+                       <span className="px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-xl text-xs font-black text-blue-500 flex items-center gap-2">
                          <Award size={14} /> أستاذ التربية البدنية والرياضية
                        </span>
-                       <span className="px-4 py-1.5 bg-orange-500/10 border border-orange-500/20 rounded-xl text-xs font-black text-orange-400 flex items-center gap-2">
-                         <Palette size={14} /> مصمم ومطور مواقع ويب
+                       <span className="px-4 py-1.5 bg-orange-500/10 border border-orange-500/20 rounded-xl text-xs font-black text-orange-500 flex items-center gap-2">
+                         <Palette size={14} /> مصمم ومطور النظام: الزايز محمد الطاهر
                        </span>
                     </div>
-                    <p className="text-sm text-slate-400 mt-6 leading-relaxed font-bold">
-                      تم تصميم وتطوير هذا النظام الرقمي بهدف تسهيل المهام البيداغوجية اليومية لأساتذة التربية البدنية، مع التركيز على دقة البيانات وجمالية الواجهة لتوفير تجربة مستخدم عصرية ومتميزة.
+                    <p className={`text-sm mt-6 leading-relaxed font-bold ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                      تم ضبط وتخصيص هذا الدفتر اليومي الرقمي للأستاذ <strong className={isLight ? 'text-blue-700' : 'text-blue-400'}>{teacherInfo.name || "الزايز محمد الطاهر"}</strong> في {teacherInfo.school}. يتم تحديث الاسم وبيانات الإشراف تلقائياً في كافة مذكرات وبطاقات الدفتر اليومي.
                     </p>
                  </div>
               </GlassPanel>
 
-              <GlassPanel className="p-8 space-y-8 border-t-4 border-t-orange-500">
+              {/* NEW & PROMINENT: Theme Selection Card (ثيم أبيض و أسود) */}
+              <GlassPanel isLight={isLight} isBlack={isBlack} className="p-8 space-y-6 lg:col-span-2 border-t-4 border-t-blue-500">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div>
+                    <h3 className={`text-2xl font-black flex items-center gap-3 ${isLight ? 'text-blue-600' : 'text-blue-400'}`}>
+                      <Palette size={26} /> ثيمات ومظهر التطبيق (ثيم أبيض وأسود)
+                    </h3>
+                    <p className={`text-xs mt-1 font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                      اختر المظهر المفضل: ثيم أبيض نهاري ناصع ومريح للقراءة والطباعة، أو ثيم أسود داكن نقي وفخم، أو السمات الملونة.
+                    </p>
+                  </div>
+                  <span className={`px-4 py-1.5 rounded-xl text-xs font-black border flex items-center gap-2 ${
+                    isLight ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-blue-500/10 text-blue-400 border-blue-500/30'
+                  }`}>
+                    <Sparkles size={14} /> المظهر المفعّل: {currentTheme.name}
+                  </span>
+                </div>
+
+                {/* Primary Dual Selector: White Theme vs Black Theme */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
+                  {/* White Theme Card */}
+                  <button
+                    onClick={() => {
+                      setThemeKey('white');
+                      addNotification('info', 'تغيير المظهر', 'تم تفعيل ثيم أبيض (النهاري الناصع) بنجاح');
+                    }}
+                    className={`p-6 rounded-2xl border-2 text-right transition-all flex items-start gap-5 relative overflow-hidden group ${
+                      themeKey === 'white'
+                        ? 'border-blue-600 bg-blue-50/80 shadow-xl shadow-blue-500/15 ring-4 ring-blue-500/15'
+                        : isLight
+                          ? 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-md'
+                          : 'border-white/10 bg-white/5 hover:border-white/20'
+                    }`}
+                  >
+                    <div className="w-14 h-14 rounded-2xl bg-white border border-slate-300 shadow-md flex items-center justify-center shrink-0">
+                      <Sun className="text-amber-500 group-hover:rotate-45 transition-transform duration-500" size={32} />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className={`text-lg font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>ثيم أبيض (نهاري ناصع)</span>
+                        {themeKey === 'white' && (
+                          <span className="px-2.5 py-1 rounded-lg bg-blue-600 text-white text-[10px] font-black flex items-center gap-1 shadow-sm">
+                            <Check size={12} /> مفعّل حالياً
+                          </span>
+                        )}
+                      </div>
+                      <p className={`text-xs leading-relaxed font-bold ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
+                        خلفية بيضاء نقية مع نصوص سوداء واضحة جداً، مريح للعين في النهار ومناسب للمطالعة والطباعة.
+                      </p>
+                      <div className="flex items-center gap-2 mt-4">
+                        <span className="w-4 h-4 rounded-full bg-white border border-slate-300 shadow-inner"></span>
+                        <span className="w-4 h-4 rounded-full bg-blue-600"></span>
+                        <span className="w-4 h-4 rounded-full bg-slate-900"></span>
+                        <span className="text-[10px] font-bold text-slate-400 mr-2">أبيض ناصع • تباين عالٍ</span>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Black Theme Card */}
+                  <button
+                    onClick={() => {
+                      setThemeKey('black');
+                      addNotification('info', 'تغيير المظهر', 'تم تفعيل ثيم أسود (الداكن النقي) بنجاح');
+                    }}
+                    className={`p-6 rounded-2xl border-2 text-right transition-all flex items-start gap-5 relative overflow-hidden group ${
+                      themeKey === 'black'
+                        ? 'border-sky-500 bg-zinc-900 shadow-2xl shadow-sky-500/15 ring-4 ring-sky-500/15'
+                        : isLight
+                          ? 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-md'
+                          : 'border-white/10 bg-white/5 hover:border-white/20'
+                    }`}
+                  >
+                    <div className="w-14 h-14 rounded-2xl bg-black border border-zinc-700 shadow-md flex items-center justify-center shrink-0">
+                      <Moon className="text-sky-400 group-hover:-rotate-12 transition-transform duration-500" size={32} />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className={`text-lg font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>ثيم أسود (داكن نقي)</span>
+                        {themeKey === 'black' && (
+                          <span className="px-2.5 py-1 rounded-lg bg-sky-500 text-black text-[10px] font-black flex items-center gap-1 shadow-sm">
+                            <Check size={12} /> مفعّل حالياً
+                          </span>
+                        )}
+                      </div>
+                      <p className={`text-xs leading-relaxed font-bold ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
+                        خلفية سوداء عميقة ناصعة السواد OLED مع عناصر رمادية راقية ولمسات زرقاء ساطعة.
+                      </p>
+                      <div className="flex items-center gap-2 mt-4">
+                        <span className="w-4 h-4 rounded-full bg-black border border-zinc-700 shadow-inner"></span>
+                        <span className="w-4 h-4 rounded-full bg-sky-400"></span>
+                        <span className="w-4 h-4 rounded-full bg-zinc-800"></span>
+                        <span className="text-[10px] font-bold text-slate-400 mr-2">أسود خالص • فخم وعصري</span>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Additional Vibrant Themes */}
+                <div className="pt-2">
+                  <p className={`text-xs font-black uppercase mb-3 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>سمات لونية إضافية:</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {(['ocean', 'emerald', 'royal', 'sunset'] as ThemeKey[]).map((key) => {
+                      const theme = THEMES[key];
+                      const isSelected = themeKey === key;
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => {
+                            setThemeKey(key);
+                            addNotification('info', 'تغيير المظهر', `تم تفعيل ${theme.name}`);
+                          }}
+                          className={`p-3.5 rounded-xl border transition-all text-right flex items-center gap-3 ${
+                            isSelected
+                              ? 'border-2 shadow-lg'
+                              : isLight
+                                ? 'border-slate-200 bg-slate-50 hover:bg-white'
+                                : 'border-white/10 bg-white/5 hover:bg-white/10'
+                          }`}
+                          style={isSelected ? { borderColor: theme.primary, backgroundColor: `${theme.primary}15` } : {}}
+                        >
+                          <div 
+                            className="w-7 h-7 rounded-lg shrink-0 border border-white/20 shadow-sm"
+                            style={{ backgroundColor: theme.primary }}
+                          />
+                          <div className="overflow-hidden">
+                            <p className={`text-xs font-black truncate ${isLight ? 'text-slate-800' : 'text-white'}`}>{theme.name}</p>
+                            <p className="text-[9px] text-slate-500 truncate">{theme.badge}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </GlassPanel>
+
+              {/* Official Professional Info (Teacher Name input) */}
+              <GlassPanel isLight={isLight} isBlack={isBlack} className="p-8 space-y-8 lg:col-span-2 border-t-4 border-t-indigo-500">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-black flex items-center gap-3 text-orange-400"><Database size={24} /> إدارة البيانات</h3>
-                  <div className="p-2 bg-orange-500/10 text-orange-400 rounded-lg"><Info size={18} /></div>
+                  <h3 className={`text-xl font-black flex items-center gap-3 ${isLight ? 'text-indigo-600' : 'text-indigo-400'}`}>
+                    <User size={24} /> المعلومات المهنية الرسمية (اسم الأستاذ والمؤسسة)
+                  </h3>
+                  <span className="text-xs text-slate-500 font-bold">يتم اعتمادها فوراً في كافة وثائق الدفتر</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <ModernField 
+                    label="اسم الأستاذ" 
+                    icon={User} 
+                    value={teacherInfo.name} 
+                    onChange={(v) => setTeacherInfo({...teacherInfo, name: v})} 
+                    color={currentTheme.primary} 
+                    isLight={isLight} 
+                    isBlack={isBlack} 
+                  />
+                  <ModernField 
+                    label="المدرسة الابتدائية" 
+                    icon={School} 
+                    value={teacherInfo.school} 
+                    onChange={(v) => setTeacherInfo({...teacherInfo, school: v})} 
+                    color={currentTheme.primary} 
+                    isLight={isLight} 
+                    isBlack={isBlack} 
+                  />
+                  <ModernField 
+                    label="السيد المفتش" 
+                    icon={CheckCircle} 
+                    value={teacherInfo.inspector} 
+                    onChange={(v) => setTeacherInfo({...teacherInfo, inspector: v})} 
+                    color={currentTheme.primary} 
+                    isLight={isLight} 
+                    isBlack={isBlack} 
+                  />
+                  <ModernField 
+                    label="السيد المدير" 
+                    icon={GraduationCap} 
+                    value={teacherInfo.manager} 
+                    onChange={(v) => setTeacherInfo({...teacherInfo, manager: v})} 
+                    color={currentTheme.primary} 
+                    isLight={isLight} 
+                    isBlack={isBlack} 
+                  />
+                </div>
+              </GlassPanel>
+
+              {/* Time Configuration */}
+              <GlassPanel isLight={isLight} isBlack={isBlack} className="p-8 space-y-8 border-t-4 border-t-blue-500">
+                <h3 className={`text-xl font-black flex items-center gap-3 ${isLight ? 'text-blue-600' : 'text-blue-400'}`}>
+                  <SettingsIcon size={24} /> الإعدادات الزمنية
+                </h3>
+                <div className="grid grid-cols-1 gap-6">
+                  <ModernField label="تاريخ بداية الفصل" type="date" icon={Calendar} value={semesterStart} onChange={setSemesterStart} color={currentTheme.primary} isLight={isLight} isBlack={isBlack} />
+                  <ModernField label="تاريخ معاينة الدفتر" type="date" icon={Clock} value={targetDate} onChange={setTargetDate} color={currentTheme.primary} isLight={isLight} isBlack={isBlack} />
+                </div>
+              </GlassPanel>
+
+              {/* Data Backup & Restore */}
+              <GlassPanel isLight={isLight} isBlack={isBlack} className="p-8 space-y-8 border-t-4 border-t-orange-500">
+                <div className="flex items-center justify-between">
+                  <h3 className={`text-xl font-black flex items-center gap-3 ${isLight ? 'text-orange-600' : 'text-orange-400'}`}>
+                    <Database size={24} /> إدارة البيانات
+                  </h3>
+                  <div className="p-2 bg-orange-500/10 text-orange-500 rounded-lg"><Info size={18} /></div>
                 </div>
                 <div className="space-y-6">
-                  <p className="text-xs text-slate-400 leading-relaxed font-bold">قم بتصدير مذكراتك وملاحظاتك المهنية لحفظها خارج التطبيق أو استعادتها عند تغيير المتصفح.</p>
+                  <p className={`text-xs leading-relaxed font-bold ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                    قم بتصدير مذكراتك وملاحظاتك المهنية لحفظها خارج التطبيق أو استعادتها عند تغيير المتصفح.
+                  </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <button onClick={handleBackup} className="flex items-center justify-center gap-3 py-5 bg-orange-600 text-white rounded-2xl hover:bg-orange-700 transition-all shadow-lg shadow-orange-600/20 group">
                       <Download size={20} className="group-hover:-translate-y-1 transition-transform" />
                       <span className="text-sm font-black">نسخ احتياطي</span>
                     </button>
-                    <button onClick={() => fileInputRef.current?.click()} className="flex items-center justify-center gap-3 py-5 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all group">
-                      <Upload size={20} className="text-orange-400 group-hover:translate-y-1 transition-transform" />
+                    <button onClick={() => fileInputRef.current?.click()} className={`flex items-center justify-center gap-3 py-5 rounded-2xl border transition-all group ${
+                      isLight 
+                        ? 'bg-slate-50 border-slate-300 hover:bg-slate-100 text-slate-800' 
+                        : 'bg-white/5 border-white/10 hover:bg-white/10 text-white'
+                    }`}>
+                      <Upload size={20} className="text-orange-500 group-hover:translate-y-1 transition-transform" />
                       <span className="text-sm font-black">استرجاع النسخة</span>
                     </button>
                     <input type="file" ref={fileInputRef} onChange={handleRestore} className="hidden" accept=".json" />
@@ -454,87 +1197,714 @@ export default function App() {
                 </div>
               </GlassPanel>
 
-              <GlassPanel className="p-8 space-y-8 border-t-4 border-t-blue-500">
-                <h3 className="text-xl font-black flex items-center gap-3 text-blue-400"><SettingsIcon size={24} /> الإعدادات الزمنية</h3>
-                <div className="grid grid-cols-1 gap-6">
-                  <ModernField label="تاريخ بداية الفصل" type="date" icon={Calendar} value={semesterStart} onChange={setSemesterStart} color={currentTheme.primary} />
-                  <ModernField label="تاريخ معاينة الدفتر" type="date" icon={Clock} value={targetDate} onChange={setTargetDate} color={currentTheme.primary} />
-                </div>
-              </GlassPanel>
-
-              <GlassPanel className="p-8 space-y-8 lg:col-span-2 border-t-4 border-t-indigo-500">
-                <h3 className="text-xl font-black flex items-center gap-3 text-indigo-400"><User size={24} /> المعلومات المهنية الرسمية</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  <ModernField label="اسم الأستاذ" icon={User} value={teacherInfo.name} onChange={(v) => setTeacherInfo({...teacherInfo, name: v})} color={currentTheme.primary} />
-                  <ModernField label="المدرسة" icon={School} value={teacherInfo.school} onChange={(v) => setTeacherInfo({...teacherInfo, school: v})} color={currentTheme.primary} />
-                  <ModernField label="المفتش" icon={CheckCircle} value={teacherInfo.inspector} onChange={(v) => setTeacherInfo({...teacherInfo, inspector: v})} color={currentTheme.primary} />
-                  <ModernField label="المدير" icon={GraduationCap} value={teacherInfo.manager} onChange={(v) => setTeacherInfo({...teacherInfo, manager: v})} color={currentTheme.primary} />
-                </div>
-              </GlassPanel>
             </div>
           ) : activeView === 'notes' ? (
             <div className="space-y-8">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-white/10 pb-6">
-                <h3 className="text-3xl font-black text-white flex items-center gap-4"><History className="text-blue-500" size={32} /> السجل والملاحظات</h3>
-                <div className="px-5 py-2.5 bg-red-500/10 text-red-400 rounded-2xl text-xs font-black border border-red-500/20 shadow-lg shadow-red-500/5">
+              <div className={`flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b pb-6 ${
+                isLight ? 'border-slate-200' : 'border-white/10'
+              }`}>
+                <h3 className={`text-3xl font-black flex items-center gap-4 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  <History className="text-blue-500" size={32} /> السجل والملاحظات
+                </h3>
+                <div className="px-5 py-2.5 bg-red-500/10 text-red-500 rounded-2xl text-xs font-black border border-red-500/20 shadow-lg shadow-red-500/5">
                   إجمالي الحصص المؤجلة: {postponedSessions.length}
                 </div>
               </div>
               {postponedSessions.length > 0 ? (
                 <div className="grid grid-cols-1 gap-4">
                   {postponedSessions.map((ps, idx) => (
-                    <GlassPanel key={idx} className="flex flex-col md:flex-row items-center gap-6 border-r-8 border-r-red-500 hover:bg-white/[0.08] transition-all group">
+                    <GlassPanel key={idx} isLight={isLight} isBlack={isBlack} className="flex flex-col md:flex-row items-center gap-6 border-r-8 border-r-red-500 hover:bg-white/[0.08] transition-all group">
                       <div className="flex-1 text-right">
                         <div className="flex items-center gap-3 text-[11px] font-black text-slate-500 mb-2">
-                          <span className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded-md"><Calendar size={12} /> {ps.date}</span>
-                          <span className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded-md"><School size={12} /> القسم: {ps.gradeSection}</span>
+                          <span className={`flex items-center gap-1 px-2.5 py-1 rounded-md ${isLight ? 'bg-slate-100 text-slate-700' : 'bg-white/5 text-slate-300'}`}>
+                            <Calendar size={12} /> {ps.date}
+                          </span>
+                          <span className={`flex items-center gap-1 px-2.5 py-1 rounded-md ${isLight ? 'bg-slate-100 text-slate-700' : 'bg-white/5 text-slate-300'}`}>
+                            <School size={12} /> القسم: {ps.gradeSection}
+                          </span>
                         </div>
-                        <h4 className="text-xl font-black text-white group-hover:text-red-400 transition-colors">سبب التأجيل: {ps.reason}</h4>
+                        <h4 className={`text-xl font-black group-hover:text-red-500 transition-colors ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                          سبب التأجيل: {ps.reason}
+                        </h4>
                       </div>
                       <div className="px-6 py-3 bg-red-500/20 text-red-500 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-red-500/30">حصة غير مكتملة</div>
                     </GlassPanel>
                   ))}
                 </div>
               ) : (
-                <div className="py-40 text-center opacity-30">
-                  <ClipboardList size={80} className="mx-auto mb-6 text-slate-600" />
-                  <p className="text-2xl font-black text-slate-500">لا توجد أي ملاحظات أو تأجيلات حالياً</p>
-                  <p className="text-sm mt-2 text-slate-600">سجل اليومي سليم بنسبة 100%</p>
+                <div className="py-40 text-center opacity-40">
+                  <ClipboardList size={80} className={`mx-auto mb-6 ${isLight ? 'text-slate-400' : 'text-slate-600'}`} />
+                  <p className={`text-2xl font-black ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>لا توجد أي ملاحظات أو تأجيلات حالياً</p>
+                  <p className={`text-sm mt-2 ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>سجل اليومي سليم بنسبة 100%</p>
                 </div>
               )}
             </div>
           ) : activeView === 'distribution' ? (
-            <GlassPanel className="p-10 border-t-4 border-t-blue-500">
+            <GlassPanel isLight={isLight} isBlack={isBlack} className="p-10 border-t-4 border-t-blue-500">
                <div className="flex items-center gap-4 mb-10">
                   <List className="text-blue-500" size={32} />
-                  <h3 className="text-2xl font-black">جدول توزيع الحصص الرسمي</h3>
+                  <h3 className={`text-2xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>جدول توزيع الحصص الرسمي</h3>
                </div>
                <div className="overflow-x-auto">
                  <table className="w-full text-sm">
-                   <thead><tr className="border-b border-white/10 text-slate-500 font-black"><th className="py-6 text-right px-4">اليوم</th><th className="text-right px-4">التوقيت</th><th className="text-right px-4">المستوى</th><th className="text-right px-4">الفوج</th></tr></thead>
+                   <thead>
+                     <tr className={`border-b font-black ${isLight ? 'border-slate-200 text-slate-600' : 'border-white/10 text-slate-400'}`}>
+                       <th className="py-6 text-right px-4">اليوم</th>
+                       <th className="text-right px-4">التوقيت</th>
+                       <th className="text-right px-4">المستوى</th>
+                       <th className="text-right px-4">الفوج</th>
+                     </tr>
+                   </thead>
                    <tbody>
                      {WEEKLY_SCHEDULE.map((slot, i) => (
-                       <tr key={i} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
-                         <td className="py-6 font-black text-white px-4">{slot.dayName}</td>
-                         <td className="font-mono text-blue-400 px-4">{slot.time}</td>
-                         <td className="px-4 font-bold">السنة {slot.grade} ابتدائي</td>
-                         <td className="px-4 font-black text-slate-400 group-hover:text-blue-400">({slot.section})</td>
+                       <tr key={i} className={`border-b transition-colors group ${
+                         isLight ? 'border-slate-100 hover:bg-slate-50' : 'border-white/5 hover:bg-white/5'
+                       }`}>
+                         <td className={`py-6 font-black px-4 ${isLight ? 'text-slate-900' : 'text-white'}`}>{slot.dayName}</td>
+                         <td className="font-mono text-blue-500 px-4 font-bold">{slot.time}</td>
+                         <td className={`px-4 font-bold ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>السنة {slot.grade} ابتدائي</td>
+                         <td className="px-4 font-black text-slate-500 group-hover:text-blue-500">({slot.section})</td>
                        </tr>
                      ))}
                    </tbody>
                  </table>
                </div>
             </GlassPanel>
-          ) : (
+          ) : activeView === 'desktop' ? (
+            /* Desktop / Paper Sheet View */
             <div className="space-y-6">
+              {/* Action & Control Bar */}
+              <div className={`p-6 rounded-3xl border flex flex-col lg:flex-row items-center justify-between gap-6 no-print ${
+                isLight ? 'bg-white border-slate-200 shadow-sm' : isBlack ? 'bg-zinc-900 border-zinc-800' : 'bg-white/5 border-white/10'
+              }`}>
+                <div className="flex items-center gap-4 text-right w-full lg:w-auto">
+                  <div className="p-3.5 rounded-2xl bg-blue-500/10 text-blue-500 border border-blue-500/20 shrink-0">
+                    <Monitor size={28} />
+                  </div>
+                  <div>
+                    <h3 className={`text-xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                      عرض الكراس اليومي على جهاز الكمبيوتر
+                    </h3>
+                    <p className={`text-xs font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                      ورقة نموذجية مطابقة للدفتر اليومي الورقي الرسمي (معاينة وطباعة A4 لليوم الحالي)
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
+                  {/* Date Selector */}
+                  <div className={`flex items-center gap-1 p-1 rounded-xl border ${
+                    isLight ? 'bg-slate-50 border-slate-200' : isBlack ? 'bg-black border-zinc-800' : 'bg-slate-900 border-white/10'
+                  }`}>
+                    <button 
+                      onClick={() => changeDay(-1)} 
+                      className={`p-2 rounded-lg transition-colors ${isLight ? 'hover:bg-slate-200 text-slate-700' : 'hover:bg-white/10 text-slate-300'}`}
+                      title="اليوم السابق"
+                    >
+                      <ChevronRight size={18} />
+                    </button>
+                    <input 
+                      type="date" 
+                      value={targetDate} 
+                      onChange={(e) => setTargetDate(e.target.value)}
+                      className={`bg-transparent text-xs font-black px-2 py-1 outline-none cursor-pointer ${
+                        isLight ? 'text-slate-900' : 'text-white'
+                      }`}
+                    />
+                    <button 
+                      onClick={() => changeDay(1)} 
+                      className={`p-2 rounded-lg transition-colors ${isLight ? 'hover:bg-slate-200 text-slate-700' : 'hover:bg-white/10 text-slate-300'}`}
+                      title="اليوم التالي"
+                    >
+                      <ChevronLeft size={18} />
+                    </button>
+                  </div>
+
+                  {/* Zoom Controls */}
+                  <div className={`hidden sm:flex items-center gap-1 p-1 rounded-xl border ${
+                    isLight ? 'bg-slate-50 border-slate-200' : isBlack ? 'bg-black border-zinc-800' : 'bg-slate-900 border-white/10'
+                  }`}>
+                    <button 
+                      onClick={() => setSheetZoom(prev => Math.max(70, prev - 10))}
+                      className={`p-2 rounded-lg transition-colors ${isLight ? 'hover:bg-slate-200 text-slate-700' : 'hover:bg-white/10 text-slate-300'}`}
+                      title="تصغير الورقة"
+                    >
+                      <ZoomOut size={16} />
+                    </button>
+                    <span className={`text-[11px] font-black px-2 font-mono ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                      {sheetZoom}%
+                    </span>
+                    <button 
+                      onClick={() => setSheetZoom(prev => Math.min(130, prev + 10))}
+                      className={`p-2 rounded-lg transition-colors ${isLight ? 'hover:bg-slate-200 text-slate-700' : 'hover:bg-white/10 text-slate-300'}`}
+                      title="تكبير الورقة"
+                    >
+                      <ZoomIn size={16} />
+                    </button>
+                  </div>
+
+                  {/* Toggle Signatures */}
+                  <button
+                    onClick={() => setShowSignatureNames(!showSignatureNames)}
+                    className={`px-3.5 py-2.5 rounded-xl text-xs font-black border transition-all ${
+                      showSignatureNames
+                        ? isLight ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-blue-500/20 border-blue-500/30 text-blue-400'
+                        : isLight ? 'bg-slate-100 border-slate-300 text-slate-600' : 'bg-white/5 border-white/10 text-slate-400'
+                    }`}
+                    title="تبديل إظهار الأسماء أو أسطر النقط للتوقيع اليدوي"
+                  >
+                    {showSignatureNames ? 'أسماء التوقيع: ظاهرة' : 'أسماء التوقيع: منقطة'}
+                  </button>
+
+                  {/* Print Button */}
+                  <button
+                    onClick={() => window.print()}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-blue-600/30 active:scale-95"
+                  >
+                    <Printer size={16} />
+                    <span>طباعة الكراس (A4)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Paper Canvas Display (Simulating Computer Desktop screen with physical A4 Paper) */}
+              <div className={`p-4 md:p-10 rounded-[2.5rem] border overflow-x-auto flex justify-center no-print transition-all ${
+                isLight ? 'bg-slate-200/80 border-slate-300/80 shadow-inner' : isBlack ? 'bg-[#09090b] border-zinc-900' : 'bg-slate-950/60 border-white/5 shadow-inner'
+              }`}>
+                <div 
+                  style={{ transform: `scale(${sheetZoom / 100})`, transformOrigin: 'top center' }}
+                  className="transition-transform duration-200 w-full flex justify-center"
+                >
+                  <div 
+                    id="printable-daily-sheet"
+                    className="bg-white text-black w-full max-w-[850px] min-h-[1180px] p-8 md:p-12 shadow-2xl rounded-sm border border-slate-300 relative text-right flex flex-col justify-between"
+                    style={{ fontFamily: "'Cairo', sans-serif" }}
+                  >
+                    {/* Sheet Header */}
+                    <div>
+                      <div className="flex items-center justify-between pb-3">
+                        <div className="text-right">
+                          <span className="text-sm md:text-base font-black text-black">
+                            المؤسسة : {teacherInfo.school}
+                          </span>
+                        </div>
+                        <div className="text-center">
+                          <div className="bg-black text-white px-9 py-2 rounded-full font-black text-lg md:text-xl tracking-wider shadow-sm inline-block">
+                            الدفتر اليومي
+                          </div>
+                        </div>
+                        <div className="text-left" dir="ltr">
+                          <span className="text-sm md:text-base font-black text-black">
+                            السنة الدراسية : {academicYear}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Sheet Table */}
+                      <div className="mt-4 overflow-hidden">
+                        <table className="w-full border-collapse border-2 border-black text-center text-[12px] md:text-[13px] leading-tight text-black">
+                          <thead>
+                            <tr className="border-b-2 border-black bg-slate-50 font-black">
+                              <th className="border border-black py-2.5 px-1.5 w-[9%] text-black font-black">اليوم</th>
+                              <th className="border border-black py-2.5 px-1.5 w-[11%] text-black font-black">الساعة</th>
+                              <th className="border border-black py-2.5 px-1.5 w-[10%] text-black font-black">القسم</th>
+                              <th className="border border-black py-2.5 px-1.5 w-[12%] text-black font-black">الميدان</th>
+                              <th className="border border-black py-2.5 px-2 w-[28%] text-black font-black">التعلمات</th>
+                              <th className="border border-black py-2.5 px-2 w-[20%] text-black font-black">محتوى التعلم</th>
+                              <th className="border border-black py-2.5 px-1.5 w-[10%] text-black font-black">ملاحظات</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {/* Rows with actual sessions for today */}
+                            {rows.map((row, idx) => (
+                              <tr key={`session-${idx}`} className={`border-b border-black min-h-[34px] ${row.isIncomplete ? 'bg-red-50/70' : ''}`}>
+                                <td className="border border-black py-2 px-1 font-bold">{row.day}</td>
+                                <td className="border border-black py-2 px-1 font-mono font-bold text-[11px] md:text-xs" dir="ltr">{row.time}</td>
+                                <td className="border border-black py-2 px-1 font-bold">السنة {row.gradeSection}</td>
+                                <td className="border border-black py-2 px-1 font-bold">{row.field}</td>
+                                <td className="border border-black py-2 px-2 font-bold text-right leading-snug">{row.learnings}</td>
+                                <td className="border border-black py-2 px-2 font-bold text-right leading-snug">{row.content}</td>
+                                <td className="border border-black py-2 px-1 text-[11px] font-bold">
+                                  {row.isIncomplete ? (
+                                    <span className="text-red-700 font-black">
+                                      مؤجلة ({postponedSessions.find(p => p.date === row.date && p.gradeSection === row.gradeSection)?.reason || 'نصف يوم تعليمي'})
+                                    </span>
+                                  ) : (
+                                    ''
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+
+                            {/* Empty filler rows to complete the classic paper sheet layout identical to PDF */}
+                            {Array.from({ length: Math.max(0, 24 - rows.length) }).map((_, fIdx) => (
+                              <tr key={`empty-${fIdx}`} className="border-b border-black h-[34px]">
+                                <td className="border border-black py-2 px-1">&nbsp;</td>
+                                <td className="border border-black py-2 px-1">&nbsp;</td>
+                                <td className="border border-black py-2 px-1">&nbsp;</td>
+                                <td className="border border-black py-2 px-1">&nbsp;</td>
+                                <td className="border border-black py-2 px-2">&nbsp;</td>
+                                <td className="border border-black py-2 px-2">&nbsp;</td>
+                                <td className="border border-black py-2 px-1">&nbsp;</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Sheet Footer Signatures */}
+                    <div className="pt-8 pb-4 flex justify-between items-center text-sm md:text-base font-black text-black">
+                      <div className="text-right">
+                        الأستاذ: {showSignatureNames ? (teacherInfo.name || "الزايز محمد الطاهر") : ".................................."}
+                      </div>
+                      <div className="text-center">
+                        المفتش: {showSignatureNames ? (teacherInfo.inspector || "السيد المفتش") : ".................................."}
+                      </div>
+                      <div className="text-left">
+                        المدير: {showSignatureNames ? (teacherInfo.manager || "السيد المدير") : ".................................."}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Record View (Daily Lessons & Visual Dashboard) */
+            <div className="space-y-8">
+              
+              {/* --- DASHBOARD: Weekly & Daily Achievement Visual Statistics --- */}
+              <div className={`rounded-[2.5rem] border transition-all duration-300 overflow-hidden shadow-xl ${
+                isLight 
+                  ? 'bg-white/95 border-slate-200/90 shadow-slate-200/60' 
+                  : isBlack 
+                    ? 'bg-[#0c0c0e] border-zinc-800 shadow-2xl' 
+                    : 'bg-white/5 border-white/10 backdrop-blur-md shadow-2xl'
+              }`}>
+                {/* Dashboard Header Bar */}
+                <div className={`p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b ${
+                  isLight ? 'border-slate-100 bg-slate-50/60' : isBlack ? 'border-zinc-800/80 bg-zinc-900/30' : 'border-white/5 bg-white/[0.02]'
+                }`}>
+                  <div className="flex items-center gap-4">
+                    <div className="p-3.5 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/25 ring-4 ring-blue-500/10 shrink-0">
+                      <BarChart3 size={24} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-3">
+                        <h3 className={`text-xl md:text-2xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                          لوحة متابعة الإنجاز والدروس
+                        </h3>
+                        <span className="hidden sm:inline-flex px-3 py-1 rounded-full text-[10px] font-black bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                          {dashboardScope === 'week' ? 'إحصائيات أسبوعية' : 'إحصائيات يومية'}
+                        </span>
+                      </div>
+                      <p className={`text-xs mt-1 font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                        {dashboardScope === 'week' 
+                          ? `الأسبوع الجاري: من ${weekStats.sundayFormatted} إلى ${weekStats.thursdayFormatted} (16 حصة مبرمجة)`
+                          : `اليوم المختار: ${getDayName(new Date(targetDate))} ${formatDate(new Date(targetDate))} (${rows.length} حصص)`}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-end md:self-auto">
+                    {/* Scope Selector: Week vs Day */}
+                    <div className={`p-1 rounded-xl border flex items-center gap-1 ${
+                      isLight ? 'bg-white border-slate-200' : isBlack ? 'bg-black border-zinc-800' : 'bg-white/5 border-white/10'
+                    }`}>
+                      <button
+                        onClick={() => setDashboardScope('week')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                          dashboardScope === 'week'
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        الأسبوع الحالي
+                      </button>
+                      <button
+                        onClick={() => setDashboardScope('today')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                          dashboardScope === 'today'
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        اليوم المحدد
+                      </button>
+                    </div>
+
+                    {/* Toggle Collapse */}
+                    <button
+                      onClick={() => setIsDashboardOpen(!isDashboardOpen)}
+                      className={`p-2.5 rounded-xl border transition-all ${
+                        isLight 
+                          ? 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100' 
+                          : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 text-white'
+                      }`}
+                      title={isDashboardOpen ? "طي لوحة الإحصائيات" : "توسيع لوحة الإحصائيات"}
+                    >
+                      {isDashboardOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Collapsed State Bar */}
+                {!isDashboardOpen && (
+                  <div className="p-4 md:px-8 flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 shrink-0">
+                        <DonutPieChart
+                          completed={dashboardScope === 'week' ? weekStats.totalCompleted : todayStats.completed}
+                          postponed={dashboardScope === 'week' ? weekStats.totalPostponed : todayStats.postponed}
+                          size={40}
+                          isLight={isLight}
+                          isBlack={isBlack}
+                        />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`text-sm font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                          نسبة الإنجاز: {dashboardScope === 'week' ? `${weekStats.rate}%` : `${todayStats.rate}%`}
+                        </span>
+                        <span className="text-xs font-bold text-emerald-500">
+                          {dashboardScope === 'week' ? `${weekStats.totalCompleted} منجزة` : `${todayStats.completed} منجزة`}
+                        </span>
+                        <span className="text-xs font-bold text-rose-500">
+                          {dashboardScope === 'week' ? `${weekStats.totalPostponed} مؤجلة` : `${todayStats.postponed} مؤجلة`}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setIsDashboardOpen(true)}
+                      className="text-xs font-black text-blue-500 hover:underline flex items-center gap-1"
+                    >
+                      عرض التفاصيل والرسوم البيانية الكاملة <ChevronDown size={14} />
+                    </button>
+                  </div>
+                )}
+
+                {/* Expanded Dashboard Body */}
+                {isDashboardOpen && (
+                  <div className="p-6 md:p-8 space-y-8 animate-in fade-in duration-300">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+                      
+                      {/* Left Side: Interactive Pie Chart (4 cols) */}
+                      <div className={`lg:col-span-4 p-6 rounded-3xl border flex flex-col items-center text-center justify-center relative ${
+                        isLight 
+                          ? 'bg-slate-50/80 border-slate-200' 
+                          : isBlack 
+                            ? 'bg-zinc-900/60 border-zinc-800' 
+                            : 'bg-white/[0.03] border-white/5'
+                      }`}>
+                        <div className="w-full flex items-center justify-between mb-2">
+                          <span className={`text-xs font-black flex items-center gap-1.5 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                            <PieChartIcon size={16} className="text-blue-500" />
+                            مخطط توزيع الحصص
+                          </span>
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                            (dashboardScope === 'week' ? weekStats.rate : todayStats.rate) >= 80
+                              ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                              : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
+                          }`}>
+                            {(dashboardScope === 'week' ? weekStats.rate : todayStats.rate) >= 90
+                              ? '🌟 إنجاز ممتاز'
+                              : (dashboardScope === 'week' ? weekStats.rate : todayStats.rate) >= 75
+                                ? '👍 أداء جيد جداً'
+                                : '⚠️ يحتاج متابعة'}
+                          </span>
+                        </div>
+
+                        {/* Donut Chart */}
+                        <div className="my-2">
+                          <DonutPieChart
+                            completed={dashboardScope === 'week' ? weekStats.totalCompleted : todayStats.completed}
+                            postponed={dashboardScope === 'week' ? weekStats.totalPostponed : todayStats.postponed}
+                            size={165}
+                            isLight={isLight}
+                            isBlack={isBlack}
+                          />
+                        </div>
+
+                        {/* Chart Legend */}
+                        <div className="w-full grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-200/40 dark:border-white/5">
+                          <div className={`p-2 rounded-xl flex flex-col items-center ${isLight ? 'bg-white border border-slate-200/60' : 'bg-white/5'}`}>
+                            <div className="flex items-center gap-1.5 text-[11px] font-black text-emerald-500">
+                              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                              <span>منجزة</span>
+                            </div>
+                            <span className={`text-sm font-black mt-0.5 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                              {dashboardScope === 'week' ? weekStats.totalCompleted : todayStats.completed}
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-400">
+                              {dashboardScope === 'week' 
+                                ? `${weekStats.totalSlots > 0 ? ((weekStats.totalCompleted / weekStats.totalSlots) * 100).toFixed(0) : 0}%` 
+                                : `${todayStats.total > 0 ? ((todayStats.completed / todayStats.total) * 100).toFixed(0) : 0}%`}
+                            </span>
+                          </div>
+
+                          <div className={`p-2 rounded-xl flex flex-col items-center ${isLight ? 'bg-white border border-slate-200/60' : 'bg-white/5'}`}>
+                            <div className="flex items-center gap-1.5 text-[11px] font-black text-rose-500">
+                              <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+                              <span>مؤجلة</span>
+                            </div>
+                            <span className={`text-sm font-black mt-0.5 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                              {dashboardScope === 'week' ? weekStats.totalPostponed : todayStats.postponed}
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-400">
+                              {dashboardScope === 'week' 
+                                ? `${weekStats.totalSlots > 0 ? ((weekStats.totalPostponed / weekStats.totalSlots) * 100).toFixed(0) : 0}%` 
+                                : `${todayStats.total > 0 ? ((todayStats.postponed / todayStats.total) * 100).toFixed(0) : 0}%`}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right Side: 4 KPI Cards (8 cols) */}
+                      <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        
+                        {/* KPI 1: معدل الإنجاز */}
+                        <div className={`p-6 rounded-3xl border transition-all ${
+                          isLight 
+                            ? 'bg-gradient-to-br from-blue-50/80 to-white border-blue-200/70 shadow-sm' 
+                            : isBlack 
+                              ? 'bg-zinc-900/80 border-zinc-800' 
+                              : 'bg-white/[0.04] border-white/10'
+                        }`}>
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-[11px] font-black text-blue-500 uppercase tracking-wider">معدل الإنجاز</span>
+                            <div className="p-2 rounded-xl bg-blue-500/10 text-blue-500">
+                              <TrendingUp size={18} />
+                            </div>
+                          </div>
+                          <div className="flex items-baseline gap-2">
+                            <span className={`text-3xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                              {dashboardScope === 'week' ? `${weekStats.rate}%` : `${todayStats.rate}%`}
+                            </span>
+                            <span className="text-xs font-bold text-slate-400">من المستهدف</span>
+                          </div>
+                          {/* Progress bar */}
+                          <div className="w-full bg-slate-200/60 dark:bg-white/10 h-2 rounded-full mt-4 overflow-hidden">
+                            <div 
+                              className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-700"
+                              style={{ width: `${dashboardScope === 'week' ? weekStats.rate : todayStats.rate}%` }}
+                            />
+                          </div>
+                          <p className={`text-[10px] mt-2 font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                            {dashboardScope === 'week' ? 'نسبة تنفيذ المنهاج الأسبوعي بدون تأخير' : 'نسبة حصص هذا اليوم المنفذة'}
+                          </p>
+                        </div>
+
+                        {/* KPI 2: الدروس المنجزة */}
+                        <div className={`p-6 rounded-3xl border transition-all ${
+                          isLight 
+                            ? 'bg-gradient-to-br from-emerald-50/80 to-white border-emerald-200/70 shadow-sm' 
+                            : isBlack 
+                              ? 'bg-zinc-900/80 border-zinc-800' 
+                              : 'bg-white/[0.04] border-white/10'
+                        }`}>
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-[11px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">الدروس المنجزة</span>
+                            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
+                              <CheckCircle2 size={18} />
+                            </div>
+                          </div>
+                          <div className="flex items-baseline gap-2">
+                            <span className={`text-3xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                              {dashboardScope === 'week' ? weekStats.totalCompleted : todayStats.completed}
+                            </span>
+                            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                              حصة مثبتة بالدفتر
+                            </span>
+                          </div>
+                          <div className="mt-4 flex items-center gap-1.5 text-xs font-black text-emerald-600 dark:text-emerald-400">
+                            <Check size={14} />
+                            <span>سير بيداغوجي وفق التوزيع</span>
+                          </div>
+                          <p className={`text-[10px] mt-1 font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                            الحصص المنفذة ميدانياً حسب الخطط
+                          </p>
+                        </div>
+
+                        {/* KPI 3: الدروس المؤجلة */}
+                        <div className={`p-6 rounded-3xl border transition-all ${
+                          isLight 
+                            ? 'bg-gradient-to-br from-rose-50/80 to-white border-rose-200/70 shadow-sm' 
+                            : isBlack 
+                              ? 'bg-zinc-900/80 border-zinc-800' 
+                              : 'bg-white/[0.04] border-white/10'
+                        }`}>
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-[11px] font-black text-rose-500 uppercase tracking-wider">الدروس المؤجلة</span>
+                            <div className="p-2 rounded-xl bg-rose-500/10 text-rose-500">
+                              <AlertCircle size={18} />
+                            </div>
+                          </div>
+                          <div className="flex items-baseline gap-2">
+                            <span className={`text-3xl font-black ${
+                              (dashboardScope === 'week' ? weekStats.totalPostponed : todayStats.postponed) > 0
+                                ? 'text-rose-600 dark:text-rose-400'
+                                : isLight ? 'text-slate-900' : 'text-white'
+                            }`}>
+                              {dashboardScope === 'week' ? weekStats.totalPostponed : todayStats.postponed}
+                            </span>
+                            <span className="text-xs font-bold text-slate-400">حصة مؤجلة</span>
+                          </div>
+                          <div className="mt-4 flex items-center gap-1.5 text-xs font-black text-rose-500">
+                            {(dashboardScope === 'week' ? weekStats.totalPostponed : todayStats.postponed) > 0 ? (
+                              <span>تم تعويض التوزيع وحذف الإدماج آلياً</span>
+                            ) : (
+                              <span className="text-emerald-500">لا توجد حصص مؤجلة 👍</span>
+                            )}
+                          </div>
+                          <p className={`text-[10px] mt-1 font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                            {(dashboardScope === 'week' ? weekStats.totalPostponed : todayStats.postponed) > 0
+                              ? 'نصف يوم تعليمي أو منافسات أو أسباب أخرى'
+                              : 'جدول منتظم بنسبة 100%'}
+                          </p>
+                        </div>
+
+                        {/* KPI 4: إجمالي الحصص */}
+                        <div className={`p-6 rounded-3xl border transition-all ${
+                          isLight 
+                            ? 'bg-gradient-to-br from-slate-50 to-white border-slate-200/80 shadow-sm' 
+                            : isBlack 
+                              ? 'bg-zinc-900/80 border-zinc-800' 
+                              : 'bg-white/[0.04] border-white/10'
+                        }`}>
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider">إجمالي الحصص</span>
+                            <div className="p-2 rounded-xl bg-slate-500/10 text-slate-500">
+                              <Calendar size={18} />
+                            </div>
+                          </div>
+                          <div className="flex items-baseline gap-2">
+                            <span className={`text-3xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                              {dashboardScope === 'week' ? weekStats.totalSlots : todayStats.total}
+                            </span>
+                            <span className="text-xs font-bold text-slate-400">حصة مبرمجة</span>
+                          </div>
+                          <div className="mt-4 flex items-center gap-1.5 text-xs font-black text-slate-500">
+                            <Activity size={14} />
+                            <span>
+                              {dashboardScope === 'week' ? '4 أيام دراسة (16 حصة)' : 'حسب جدول اليوم الحالي'}
+                            </span>
+                          </div>
+                          <p className={`text-[10px] mt-1 font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                            توزيع الحصص المعتمد مع الأفواج
+                          </p>
+                        </div>
+
+                      </div>
+                    </div>
+
+                    {/* Bottom Row: Interactive Day-by-Day Navigator for this Week */}
+                    <div className="pt-4 border-t border-slate-200/50 dark:border-white/5">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className={`text-xs font-black flex items-center gap-2 ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                          <Calendar size={14} className="text-blue-500" />
+                          متابعة الإنجاز اليومي لأيام الأسبوع (اضغط للانتقال لأي يوم مباشرة):
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-400">
+                          الأسبوع: {weekStats.sundayFormatted} — {weekStats.thursdayFormatted}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {weekStats.schoolDays.map((d, dIdx) => (
+                          <button
+                            key={dIdx}
+                            onClick={() => setTargetDate(d.dateISO)}
+                            className={`p-4 rounded-2xl border text-right transition-all group flex flex-col justify-between ${
+                              d.isSelected
+                                ? isLight
+                                  ? 'border-blue-600 bg-blue-50/90 shadow-md ring-2 ring-blue-500/20'
+                                  : 'border-blue-500 bg-blue-500/10 shadow-lg ring-2 ring-blue-500/30'
+                                : isLight
+                                  ? 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                                  : isBlack
+                                    ? 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-700'
+                                    : 'border-white/5 bg-white/[0.02] hover:bg-white/[0.06]'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between w-full mb-2">
+                              <span className={`text-xs font-black ${
+                                d.isSelected ? 'text-blue-600 dark:text-blue-400' : isLight ? 'text-slate-800' : 'text-white'
+                              }`}>
+                                {d.dayName}
+                              </span>
+                              <span className="text-[10px] font-mono font-bold text-slate-400">
+                                {d.dateFormatted.split('/')[0]}/{d.dateFormatted.split('/')[1]}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200/40 dark:border-white/5">
+                              <span className="text-[11px] font-bold text-slate-500">
+                                {d.total} حصص
+                              </span>
+                              {d.postponed > 0 ? (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-rose-500/15 text-rose-500 border border-rose-500/20">
+                                  {d.postponed} مؤجلة
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500/15 text-emerald-500 border border-emerald-500/20 flex items-center gap-1">
+                                  <Check size={10} /> مكتمل
+                                </span>
+                              )}
+                            </div>
+
+                            {d.isSelected && (
+                              <div className="mt-2 text-center text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                                • معروض حالياً في الجدول •
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                  </div>
+                )}
+              </div>
+
+              {/* Daily Lessons List Section */}
+              <div className="flex items-center justify-between pt-2">
+                <h3 className={`text-xl font-black flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  <FileText className="text-blue-500" size={22} />
+                  حصص اليوم: {getDayName(new Date(targetDate))} ({rows.length} حصص)
+                </h3>
+                <span className="text-xs font-bold text-slate-400 hidden sm:inline">
+                  انقر على أيقونة الحالة لتأجيل الحصة وتحديد السبب
+                </span>
+              </div>
+
               {rows.length > 0 ? rows.map((row, idx) => (
-                <div key={idx} className={`bg-white/5 border-2 rounded-[2.5rem] overflow-hidden transition-all duration-300 ${row.isIncomplete ? 'border-red-500/40 bg-red-500/10 shadow-lg shadow-red-500/5' : 'border-white/10 hover:border-white/20'}`}>
+                <div 
+                  key={idx} 
+                  className={`border-2 rounded-[2.5rem] overflow-hidden transition-all duration-300 ${
+                    row.isIncomplete 
+                      ? 'border-red-500/40 bg-red-500/10 shadow-lg shadow-red-500/5' 
+                      : isLight
+                        ? 'border-slate-200 bg-white hover:border-blue-300 hover:shadow-lg'
+                        : isBlack
+                          ? 'border-zinc-800 bg-[#0e0e11] hover:border-zinc-700'
+                          : 'border-white/10 bg-white/5 hover:border-white/20'
+                  }`}
+                >
                   <div className="p-8 flex flex-col md:flex-row items-center gap-8">
                     <div className="flex flex-col gap-3">
-                      <div className="w-28 py-4 rounded-2xl bg-slate-900 border border-white/10 text-center text-[11px] font-black text-blue-400 shadow-xl">
+                      <div className={`w-28 py-4 rounded-2xl border text-center text-[11px] font-black shadow-xl ${
+                        isLight 
+                          ? 'bg-blue-50 border-blue-200 text-blue-700' 
+                          : isBlack 
+                            ? 'bg-zinc-900 border-zinc-800 text-sky-400' 
+                            : 'bg-slate-900 border-white/10 text-blue-400'
+                      }`}>
                         {row.time}
                       </div>
-                      <div className={`w-28 py-2 rounded-xl text-center text-[9px] font-black uppercase tracking-tighter border ${row.topic.includes("تقويم") ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' : 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'}`}>
+                      <div className={`w-28 py-2 rounded-xl text-center text-[9px] font-black uppercase tracking-tighter border ${
+                        row.topic.includes("تقويم") 
+                          ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' 
+                          : 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'
+                      }`}>
                         {row.topic.includes("تقويم") ? "تقويم تشخيصي" : "وحدة تعليمية"}
                       </div>
                     </div>
@@ -546,13 +1916,19 @@ export default function App() {
                         <Tag size={16} className="text-amber-500" />
                         <span className="text-sm font-black text-amber-500/90 uppercase tracking-wide">نوع الحصة: {row.topic}</span>
                       </div>
-                      <h4 className="text-2xl font-black text-white mb-4 leading-tight">{row.learnings}</h4>
-                      <div className="mt-4 p-5 bg-teal-500/5 border-r-4 border-teal-500 rounded-2xl">
+                      <h4 className={`text-2xl font-black mb-4 leading-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                        {row.learnings}
+                      </h4>
+                      <div className={`mt-4 p-5 rounded-2xl border-r-4 ${
+                        isLight ? 'bg-teal-50 border-teal-600 text-teal-950' : 'bg-teal-500/5 border-teal-500 text-teal-50/90'
+                      }`}>
                         <div className="flex items-center gap-2 mb-2">
-                          <BookOpen size={16} className="text-teal-400" />
-                          <span className="text-[10px] font-black text-teal-400 uppercase tracking-widest">محتوى التعلم المستهدف:</span>
+                          <BookOpen size={16} className={isLight ? 'text-teal-700' : 'text-teal-400'} />
+                          <span className={`text-[10px] font-black uppercase tracking-widest ${isLight ? 'text-teal-700' : 'text-teal-400'}`}>
+                            محتوى التعلم المستهدف:
+                          </span>
                         </div>
-                        <p className="text-md font-bold text-teal-50/90 leading-relaxed">{row.content}</p>
+                        <p className="text-md font-bold leading-relaxed">{row.content}</p>
                       </div>
                       {row.isIncomplete && (
                         <div className="mt-5 flex flex-wrap gap-3">
@@ -563,38 +1939,68 @@ export default function App() {
                       )}
                     </div>
                     <div className="flex items-center gap-5">
-                       <button onClick={() => handlePostponeClick(row)} className={`p-5 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center gap-2 ${row.isIncomplete ? 'bg-red-600 border-red-500 text-white shadow-xl shadow-red-600/30' : 'bg-white/5 border-white/10 text-slate-500 hover:text-green-500 hover:border-green-500/30'}`}>
+                       <button 
+                         onClick={() => handlePostponeClick(row)} 
+                         className={`p-5 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center gap-2 ${
+                           row.isIncomplete 
+                             ? 'bg-red-600 border-red-500 text-white shadow-xl shadow-red-600/30' 
+                             : isLight
+                               ? 'bg-slate-50 border-slate-200 text-slate-500 hover:text-green-600 hover:border-green-500/40'
+                               : 'bg-white/5 border-white/10 text-slate-500 hover:text-green-500 hover:border-green-500/30'
+                         }`}
+                         title={row.isIncomplete ? 'الحصة مؤجلة (اضغط للإلغاء)' : 'اضغط للتأجيل وتحديد السبب'}
+                       >
                          {row.isIncomplete ? <XCircle size={32} /> : <CheckCircle size={32} />}
                          <span className="text-[9px] font-black uppercase tracking-widest">{row.isIncomplete ? 'مؤجلة' : 'تمت بنجاح'}</span>
                        </button>
-                       <button onClick={() => setExpandedRowIndex(expandedRowIndex === idx ? null : idx)} className="p-3 text-slate-500 hover:text-white transition-colors">
+                       <button 
+                         onClick={() => setExpandedRowIndex(expandedRowIndex === idx ? null : idx)} 
+                         className={`p-3 transition-colors ${isLight ? 'text-slate-400 hover:text-slate-800' : 'text-slate-500 hover:text-white'}`}
+                       >
                          <ChevronDown size={32} className={`transition-transform duration-500 ${expandedRowIndex === idx ? 'rotate-180' : ''}`} />
                        </button>
                     </div>
                   </div>
                   {expandedRowIndex === idx && (
-                    <div className="bg-white/[0.04] border-t border-white/10 p-8 space-y-8 animate-in fade-in zoom-in-95 duration-500">
+                    <div className={`p-8 space-y-8 animate-in fade-in zoom-in-95 duration-500 border-t ${
+                      isLight ? 'bg-slate-50 border-slate-200' : 'bg-white/[0.04] border-white/10'
+                    }`}>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                         <div className="p-6 bg-emerald-950/20 border-r-4 border-emerald-500 rounded-2xl">
-                           <span className="text-[11px] text-emerald-400 font-black block mb-2 uppercase tracking-widest">الموقف التعليمي المفصل:</span>
-                           <p className="text-sm font-bold leading-relaxed text-emerald-50/80">{row.teachingSituation || "يتم اتباع التدرج السنوي للمكتسبات والتركيز على المحتوى المعرفي."}</p>
+                         <div className={`p-6 rounded-2xl border-r-4 ${
+                           isLight ? 'bg-emerald-100/60 border-emerald-600 text-emerald-950' : 'bg-emerald-950/20 border-emerald-500 text-emerald-50/80'
+                         }`}>
+                           <span className={`text-[11px] font-black block mb-2 uppercase tracking-widest ${isLight ? 'text-emerald-800' : 'text-emerald-400'}`}>
+                             الموقف التعليمي المفصل:
+                           </span>
+                           <p className="text-sm font-bold leading-relaxed">{row.teachingSituation || "يتم اتباع التدرج السنوي للمكتسبات والتركيز على المحتوى المعرفي."}</p>
                          </div>
-                         <div className="p-6 bg-amber-950/20 border-r-4 border-amber-500 rounded-2xl">
-                           <span className="text-[11px] text-amber-400 font-black block mb-2 uppercase tracking-widest">الوسائل المستخدمة:</span>
-                           <p className="text-sm font-bold text-amber-50/80 leading-relaxed">{row.tools || "سلم أرضي، شواخص، أقماع، كرات طبية."}</p>
+                         <div className={`p-6 rounded-2xl border-r-4 ${
+                           isLight ? 'bg-amber-100/60 border-amber-600 text-amber-950' : 'bg-amber-950/20 border-amber-500 text-amber-50/80'
+                         }`}>
+                           <span className={`text-[11px] font-black block mb-2 uppercase tracking-widest ${isLight ? 'text-amber-800' : 'text-amber-400'}`}>
+                             الوسائل المستخدمة:
+                           </span>
+                           <p className="text-sm font-bold leading-relaxed">{row.tools || "سلم أرضي، شواخص، أقماع، كرات طبية."}</p>
                          </div>
                       </div>
-                      <button onClick={() => { setSelectedRow(row); setViewPdf(false); }} className="w-full py-5 bg-blue-600 hover:bg-blue-700 rounded-2xl font-black text-sm uppercase flex items-center justify-center gap-3 transition-all shadow-xl shadow-blue-600/30 group">
+                      <button 
+                        onClick={() => { setSelectedRow(row); setViewPdf(false); }} 
+                        className="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-sm uppercase flex items-center justify-center gap-3 transition-all shadow-xl shadow-blue-600/30 group"
+                      >
                         فتح المذكرة الكاملة للمعايير <ExternalLink size={20} className="group-hover:translate-x-1 transition-transform" />
                       </button>
                     </div>
                   )}
                 </div>
               )) : (
-                <div className="py-40 text-center opacity-20">
-                  <Calendar size={100} className="mx-auto mb-6 text-slate-600" />
-                  <p className="text-2xl font-black text-slate-500">لا توجد حصص مبرمجة ليوم {getDayName(new Date(targetDate))}</p>
-                  <button onClick={() => changeDay(1)} className="mt-6 text-sm font-black text-blue-400 underline decoration-2 underline-offset-8">انتقل إلى اليوم الدراسي القادم</button>
+                <div className="py-40 text-center opacity-30">
+                  <Calendar size={100} className="mx-auto mb-6 text-slate-500" />
+                  <p className={`text-2xl font-black ${isLight ? 'text-slate-700' : 'text-slate-400'}`}>
+                    لا توجد حصص مبرمجة ليوم {getDayName(new Date(targetDate))}
+                  </p>
+                  <button onClick={() => changeDay(1)} className="mt-6 text-sm font-black text-blue-500 underline decoration-2 underline-offset-8">
+                    انتقل إلى اليوم الدراسي القادم
+                  </button>
                 </div>
               )}
             </div>
@@ -603,25 +2009,56 @@ export default function App() {
       </main>
 
       {/* --- Mobile Tab Bar --- */}
-      <nav className="md:hidden fixed bottom-0 left-0 w-full bg-slate-950/95 backdrop-blur-xl border-t border-white/10 px-8 py-5 flex justify-around items-center z-[100] shadow-2xl">
-        <button onClick={() => setActiveView('record')} className={`flex flex-col items-center gap-1.5 transition-colors ${activeView === 'record' ? 'text-blue-500' : 'text-slate-500'}`}><LayoutDashboard size={24} /><span className="text-[10px] font-black">الجدول</span></button>
-        <button onClick={() => setActiveView('notes')} className={`flex flex-col items-center gap-1.5 transition-colors ${activeView === 'notes' ? 'text-blue-500' : 'text-slate-500'}`}><MessageSquare size={24} /><span className="text-[10px] font-black">السجل</span></button>
-        <button onClick={() => setActiveView('settings')} className={`flex flex-col items-center gap-1.5 transition-colors ${activeView === 'settings' ? 'text-blue-500' : 'text-slate-500'}`}><SettingsIcon size={24} /><span className="text-[10px] font-black">الإعدادات</span></button>
+      <nav className={`md:hidden fixed bottom-0 left-0 w-full backdrop-blur-xl border-t px-4 py-4 flex justify-around items-center z-[100] shadow-2xl ${
+        isLight ? 'bg-white/95 border-slate-200 text-slate-700' : isBlack ? 'bg-black/95 border-zinc-800 text-white' : 'bg-slate-950/95 border-white/10 text-white'
+      }`}>
+        <button onClick={() => setActiveView('record')} className={`flex flex-col items-center gap-1 transition-colors ${activeView === 'record' ? 'text-blue-500' : 'text-slate-500'}`}>
+          <LayoutDashboard size={22} />
+          <span className="text-[10px] font-black">الجدول</span>
+        </button>
+        <button onClick={() => setActiveView('desktop')} className={`flex flex-col items-center gap-1 transition-colors ${activeView === 'desktop' ? 'text-blue-500' : 'text-slate-500'}`}>
+          <Monitor size={22} />
+          <span className="text-[10px] font-black">الكمبيوتر</span>
+        </button>
+        <button onClick={() => setActiveView('notes')} className={`flex flex-col items-center gap-1 transition-colors ${activeView === 'notes' ? 'text-blue-500' : 'text-slate-500'}`}>
+          <MessageSquare size={22} />
+          <span className="text-[10px] font-black">السجل</span>
+        </button>
+        <button onClick={() => setActiveView('settings')} className={`flex flex-col items-center gap-1 transition-colors ${activeView === 'settings' ? 'text-blue-500' : 'text-slate-500'}`}>
+          <SettingsIcon size={22} />
+          <span className="text-[10px] font-black">الإعدادات</span>
+        </button>
       </nav>
 
-      {/* --- Modals (Postpone and Full Record) --- */}
+      {/* --- Modals: Postpone and Full Record Sheet --- */}
       {postponeModalRow && (
-        <div className="fixed inset-0 z-[200] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-6 text-right animate-in fade-in duration-300">
-          <div className="bg-slate-900 border border-white/10 rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.5)]">
-            <div className="p-8 border-b border-white/10 flex justify-between items-center bg-white/5">
-              <button onClick={() => setPostponeModalRow(null)} className="p-2 hover:bg-white/10 rounded-xl text-slate-400"><X size={24} /></button>
-              <h3 className="text-xl font-black">تأجيل حصة {postponeModalRow.gradeSection}</h3>
+        <div className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-md flex items-center justify-center p-6 text-right animate-in fade-in duration-300">
+          <div className={`border rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.5)] ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-white/10 text-white'
+          }`}>
+            <div className={`p-8 border-b flex justify-between items-center ${isLight ? 'border-slate-200 bg-slate-50' : 'border-white/10 bg-white/5'}`}>
+              <button onClick={() => setPostponeModalRow(null)} className={`p-2 rounded-xl ${isLight ? 'hover:bg-slate-200 text-slate-500' : 'hover:bg-white/10 text-slate-400'}`}>
+                <X size={24} />
+              </button>
+              <h3 className="text-xl font-black">تأجيل حصة السنة {postponeModalRow.gradeSection}</h3>
             </div>
             <div className="p-10 space-y-8">
-              <p className="text-sm text-slate-400 font-bold">لماذا تعذر إتمام هذه الحصة في وقتها المبرمج؟</p>
+              <p className={`text-sm font-bold ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                لماذا تعذر إتمام هذه الحصة في وقتها المبرمج؟
+              </p>
               <div className="grid grid-cols-1 gap-4">
                 {(Object.keys(REASONS_MAP) as PostponeReason[]).map((r) => (
-                  <button key={r} onClick={() => setTempReasonType(r)} className={`w-full p-5 rounded-2xl text-md font-black border-2 transition-all text-right flex items-center justify-between ${tempReasonType === r ? 'bg-blue-600 border-blue-400 shadow-xl shadow-blue-600/20' : 'bg-white/5 border-white/5 hover:border-white/20'}`}>
+                  <button 
+                    key={r} 
+                    onClick={() => setTempReasonType(r)} 
+                    className={`w-full p-5 rounded-2xl text-md font-black border-2 transition-all text-right flex items-center justify-between ${
+                      tempReasonType === r 
+                        ? 'bg-blue-600 border-blue-400 text-white shadow-xl shadow-blue-600/20' 
+                        : isLight
+                          ? 'bg-slate-50 border-slate-200 text-slate-800 hover:border-blue-300'
+                          : 'bg-white/5 border-white/5 text-white hover:border-white/20'
+                    }`}
+                  >
                     <span>{REASONS_MAP[r]}</span>
                     {tempReasonType === r && <CheckCircle size={24} />}
                   </button>
@@ -629,12 +2066,26 @@ export default function App() {
               </div>
               {tempReasonType === 'other' && (
                 <div className="mt-4 animate-in slide-in-from-top-4 duration-300">
-                   <ModernField label="اكتب السبب بوضوح" icon={PenTool} value={tempOtherText} onChange={setTempOtherText} color={currentTheme.primary} />
+                   <ModernField 
+                     label="اكتب السبب بوضوح" 
+                     icon={PenTool} 
+                     value={tempOtherText} 
+                     onChange={setTempOtherText} 
+                     color={currentTheme.primary} 
+                     isLight={isLight} 
+                     isBlack={isBlack} 
+                   />
                 </div>
               )}
               <div className="flex gap-4 mt-10">
-                 <button onClick={confirmPostpone} className="flex-1 py-5 bg-blue-600 hover:bg-blue-700 rounded-2xl font-black text-md uppercase shadow-xl shadow-blue-600/30 transition-transform active:scale-95">تأكيد التأجيل</button>
-                 <button onClick={() => setPostponeModalRow(null)} className="flex-1 py-5 bg-white/5 hover:bg-white/10 rounded-2xl font-black text-md uppercase transition-colors">إلغاء</button>
+                 <button onClick={confirmPostpone} className="flex-1 py-5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-md uppercase shadow-xl shadow-blue-600/30 transition-transform active:scale-95">
+                   تأكيد التأجيل
+                 </button>
+                 <button onClick={() => setPostponeModalRow(null)} className={`flex-1 py-5 rounded-2xl font-black text-md uppercase transition-colors ${
+                   isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-white/5 hover:bg-white/10 text-white'
+                 }`}>
+                   إلغاء
+                 </button>
               </div>
             </div>
           </div>
@@ -648,7 +2099,7 @@ export default function App() {
                 <button onClick={() => setSelectedRow(null)} className="p-3 hover:bg-white/10 rounded-2xl text-slate-400 transition-colors"><X size={32} /></button>
                 <div className="text-right">
                    <h3 className="text-lg font-black text-white">{selectedRow.learnings}</h3>
-                   <p className="text-[11px] text-slate-500 font-black uppercase tracking-widest">السنة {selectedRow.gradeSection} • الميدان {selectedRow.field}</p>
+                   <p className="text-[11px] text-slate-400 font-black uppercase tracking-widest">السنة {selectedRow.gradeSection} • الميدان {selectedRow.field}</p>
                 </div>
              </div>
              <div className="flex gap-3">
@@ -659,7 +2110,7 @@ export default function App() {
           <main className="flex-1 bg-slate-950 overflow-y-auto pattern-grid">
              {!viewPdf ? (
                <div className="max-w-6xl mx-auto p-6 md:p-16 text-right">
-                  <div className="bg-white text-slate-900 p-12 md:p-20 rounded-lg shadow-[0_50px_100px_rgba(0,0,0,0.3)] border-t-[12px] border-blue-600 space-y-16 relative overflow-hidden">
+                  <div className="bg-white text-slate-900 p-12 md:p-20 rounded-2xl shadow-[0_50px_100px_rgba(0,0,0,0.3)] border-t-[12px] border-blue-600 space-y-16 relative overflow-hidden">
                      <div className="absolute top-10 left-10 opacity-[0.03] pointer-events-none rotate-12"><AppIcon size={400} /></div>
                      <div className="flex justify-between items-start border-b-2 border-slate-100 pb-12 relative">
                         <div className="text-xs font-black space-y-1 text-slate-500 uppercase">
@@ -671,8 +2122,8 @@ export default function App() {
                            <p className="text-sm font-bold text-blue-600">التربية البدنية والرياضية - الطور الابتدائي</p>
                         </div>
                         <div className="text-xs font-black space-y-1 text-slate-500 text-left uppercase">
-                           <p>الأستاذ: <span className="text-slate-900">{teacherInfo.name}</span></p>
-                           <p>المؤسسة: <span className="text-slate-900">{teacherInfo.school}</span></p>
+                           <p>الأستاذ: <span className="text-slate-900 font-black">{teacherInfo.name || "الزايز محمد الطاهر"}</span></p>
+                           <p>المؤسسة: <span className="text-slate-900 font-black">{teacherInfo.school}</span></p>
                         </div>
                      </div>
                      <div className="bg-blue-50/80 p-6 rounded-3xl border-2 border-blue-100 flex items-center justify-between shadow-sm relative">
@@ -705,7 +2156,7 @@ export default function App() {
                         </div>
                         <div className="flex items-end justify-between px-4 pb-4 border-b-2 border-slate-200">
                            <div className="text-center">
-                              <p className="text-[10px] font-black text-slate-400 mb-8 uppercase">ختم السيد المدير</p>
+                              <p className="text-[10px] font-black text-slate-400 mb-8 uppercase">ختم وتأشيرة السيد المدير</p>
                               <div className="w-24 h-24 border-2 border-dashed border-slate-200 rounded-full mx-auto"></div>
                            </div>
                            <div className="text-center">
@@ -729,7 +2180,7 @@ export default function App() {
                           <p className="text-3xl font-black text-white mb-4">ملف PDF غير مرتبط</p>
                           <p className="text-slate-400 text-lg leading-relaxed">لم يتم رفع المذكرة الورقية الأصلية لهذا الدرس بعد. يمكنك الاعتماد حالياً على البيانات الرقمية الكاملة الموضحة في التبويب السابق.</p>
                        </div>
-                       <button onClick={() => setViewPdf(false)} className="px-12 py-5 bg-blue-600 rounded-2xl text-md font-black hover:bg-blue-700 transition-all shadow-xl shadow-blue-600/30 active:scale-95">الرجوع للبيانات الرقمية</button>
+                       <button onClick={() => setViewPdf(false)} className="px-12 py-5 bg-blue-600 rounded-2xl text-md font-black hover:bg-blue-700 transition-all shadow-xl shadow-blue-600/30 active:scale-95 text-white">الرجوع للبيانات الرقمية</button>
                     </div>
                   )}
                </div>
@@ -738,14 +2189,18 @@ export default function App() {
         </div>
       )}
       
-      {/* Credits Footer for Mobile */}
+      {/* Credits Footer for Mobile in Settings */}
       {activeView === 'settings' && (
-        <div className="md:hidden w-full p-8 border-t border-white/5 text-center bg-slate-950/50">
-           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">إعداد وتطوير</p>
-           <p className="text-lg font-black text-white mb-1">الزايز محمد الطاهر</p>
+        <div className={`md:hidden w-full p-8 border-t text-center ${
+          isLight ? 'bg-white border-slate-200' : 'bg-slate-950/50 border-white/5'
+        }`}>
+           <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">أستاذ المادة وتطوير النظام</p>
+           <p className={`text-lg font-black mb-1 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+             {teacherInfo.name || "الزايز محمد الطاهر"}
+           </p>
            <div className="flex items-center justify-center gap-3 text-[10px] text-slate-400 font-bold">
               <span className="flex items-center gap-1"><Award size={12} className="text-orange-500" /> أستاذ ت.ب.ر</span>
-              <span className="flex items-center gap-1"><Code size={12} className="text-blue-500" /> مصمم مواقع ويب</span>
+              <span className="flex items-center gap-1"><Code size={12} className="text-blue-500" /> برمجة وتطوير</span>
            </div>
         </div>
       )}
