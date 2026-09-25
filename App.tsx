@@ -48,9 +48,9 @@ import {
   Percent,
   Activity
 } from 'lucide-react';
-import { DailyRecordRow, TeacherInfo, WeeklySlot, PostponeReason, PostponedSession } from './types';
-import { WEEKLY_SCHEDULE, FIELD_NAME, ALL_LESSONS } from './constants';
-import { formatDate, getDayName, getLessonForSlot } from './utils';
+import { DailyRecordRow, TeacherInfo, WeeklySlot, PostponeReason, PostponedSession, TermKey } from './types';
+import { WEEKLY_SCHEDULE, FIELD_NAME, ALL_LESSONS, TERMS, DEFAULT_TERM } from './constants';
+import { formatDate, getDayName, getLessonForSlot, getTimeSortValue } from './utils';
 
 // --- Custom App Icon Component (Signature Style) ---
 const AppIcon = ({ size = 24, className = "" }: { size?: number, className?: string }) => (
@@ -513,9 +513,12 @@ const DonutPieChart = ({
 
 export default function App() {
   const [activeView, setActiveView] = useState<'record' | 'desktop' | 'settings' | 'distribution' | 'notes'>('record');
+  const [desktopSubView, setDesktopSubView] = useState<'sheet' | 'dashboard'>('sheet');
   const [sheetZoom, setSheetZoom] = useState<number>(100);
   const [showSignatureNames, setShowSignatureNames] = useState<boolean>(true);
   const [academicYear, setAcademicYear] = useState<string>("2025 / 2026");
+  const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
+  const [printBlobUrl, setPrintBlobUrl] = useState<string | null>(null);
   const [expandedRowIndex, setExpandedRowIndex] = useState<number | null>(null);
   const [selectedRow, setSelectedRow] = useState<DailyRecordRow | null>(null);
   const [viewPdf, setViewPdf] = useState(false);
@@ -542,10 +545,19 @@ export default function App() {
   const isLight = currentTheme.isLight;
   const isBlack = currentTheme.id === 'black';
 
+  const [selectedTerm, setSelectedTerm] = useState<TermKey>(() => {
+    const saved = localStorage.getItem('selected_term');
+    if (saved && (saved === '1' || saved === '2' || saved === '3')) return saved as TermKey;
+    return DEFAULT_TERM;
+  });
+
+  const currentTermConfig = TERMS[selectedTerm] || TERMS['1'];
+  const currentFieldName = currentTermConfig.fieldName;
+
   const [semesterStart, setSemesterStart] = useState<string>(() => localStorage.getItem('semester_start') || "2026-01-04");
   const [targetDate, setTargetDate] = useState<string>(new Date().toISOString().split('T')[0]);
   
-  // Default teacher name is "الزايز محمد الطاهر", or whatever name is configured in settings
+  // Default teacher name is "الزايز محمد الطاهر", and default school is "ابتدائية العربي بني"
   const [teacherInfo, setTeacherInfo] = useState<TeacherInfo>(() => {
     const saved = localStorage.getItem('teacher_info');
     if (saved) {
@@ -554,6 +566,9 @@ export default function App() {
         if (!parsed.name || parsed.name === "الأستاذ الفاضل") {
           parsed.name = "الزايز محمد الطاهر";
         }
+        if (!parsed.school || parsed.school.includes("بن مهيدي") || parsed.school.trim() === "") {
+          parsed.school = "ابتدائية العربي بني";
+        }
         return parsed;
       } catch {
         // fallback
@@ -561,7 +576,7 @@ export default function App() {
     }
     return { 
       name: "الزايز محمد الطاهر", 
-      school: "ابتدائية العربي بن مهيدي", 
+      school: "ابتدائية العربي بني", 
       inspector: "السيد المفتش", 
       manager: "السيد المدير" 
     };
@@ -599,6 +614,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    localStorage.setItem('selected_term', selectedTerm);
     localStorage.setItem('semester_start', semesterStart);
     localStorage.setItem('teacher_info', JSON.stringify(teacherInfo));
     localStorage.setItem('app_theme', themeKey);
@@ -617,7 +633,7 @@ export default function App() {
       document.body.classList.remove('light-mode');
       document.body.classList.remove('black-mode');
     }
-  }, [semesterStart, teacherInfo, themeKey, currentTheme, meetingsState, postponedSessions]);
+  }, [semesterStart, teacherInfo, themeKey, currentTheme, meetingsState, postponedSessions, selectedTerm]);
 
   const addNotification = (type: NotificationType, title: string, message: string) => {
     const id = Math.random().toString(36).substring(2, 9);
@@ -636,16 +652,16 @@ export default function App() {
     
     const slotsToday = WEEKLY_SCHEDULE
       .filter(s => s.dayIndex === dayIndex)
-      .sort((a, b) => a.time.localeCompare(b.time));
+      .sort((a, b) => getTimeSortValue(a.time) - getTimeSortValue(b.time));
 
     return slotsToday.map((slot): DailyRecordRow & { isIncomplete: boolean } => {
-      const { lesson, isIncomplete } = getLessonForSlot(slot, startDate, dateObj, meetingsState);
+      const { lesson, isIncomplete } = getLessonForSlot(slot, startDate, dateObj, meetingsState, selectedTerm);
       return {
         date: formatDate(dateObj),
         day: getDayName(dateObj),
         time: slot.time,
         gradeSection: `${slot.grade} (${slot.section})`,
-        field: FIELD_NAME,
+        field: currentFieldName,
         topic: lesson.topic,
         learnings: lesson.knowledgeResource,
         content: lesson.content,
@@ -656,7 +672,7 @@ export default function App() {
         isIncomplete
       };
     });
-  }, [targetDate, semesterStart, meetingsState]);
+  }, [targetDate, semesterStart, meetingsState, selectedTerm, currentFieldName]);
 
   // --- Weekly & Today Statistics for Dashboard & Pie Chart ---
   const weekStats = useMemo(() => {
@@ -677,7 +693,9 @@ export default function App() {
       const dayName = getDayName(d);
       const dateISO = d.toISOString().split('T')[0];
 
-      const daySlots = WEEKLY_SCHEDULE.filter(s => s.dayIndex === dayIdx);
+      const daySlots = WEEKLY_SCHEDULE
+        .filter(s => s.dayIndex === dayIdx)
+        .sort((a, b) => getTimeSortValue(a.time) - getTimeSortValue(b.time));
       const slotsWithStatus = daySlots.map(s => {
         const key = `${dateFormatted}_${s.grade}_${s.section}_${s.time}`;
         const isIncomplete = meetingsState[key] === 'incomplete';
@@ -742,11 +760,12 @@ export default function App() {
   const handleBackup = () => {
     try {
       const backupData = {
-        version: "1.2",
+        version: "1.3",
         teacherInfo,
         meetingsState,
         postponedSessions,
         semesterStart,
+        selectedTerm,
         appTheme: themeKey,
         backupDate: new Date().toLocaleString('ar-DZ')
       };
@@ -781,6 +800,9 @@ export default function App() {
           setPostponedSessions(list);
         }
         if (data.semesterStart) setSemesterStart(data.semesterStart);
+        if (data.selectedTerm && (data.selectedTerm === '1' || data.selectedTerm === '2' || data.selectedTerm === '3')) {
+          setSelectedTerm(data.selectedTerm);
+        }
         if (data.appTheme && data.appTheme in THEMES) setThemeKey(data.appTheme);
         addNotification('success', 'استعادة البيانات', 'تمت مزامنة كافة الملاحظات والتأجيلات من الملف المرفوع.');
       } catch {
@@ -833,6 +855,260 @@ export default function App() {
     setTargetDate(d.toISOString().split('T')[0]);
   };
 
+  const generatePrintableHtml = () => {
+    const sheetEl = document.getElementById('printable-daily-sheet');
+    let sheetContent = sheetEl ? sheetEl.innerHTML : '';
+    
+    if (!sheetContent) {
+      const rowsHtml = rows.map(r => `
+        <tr style="border-bottom: 1px solid #000; min-height: 34px; ${r.isIncomplete ? 'background-color: #fee2e2;' : ''}">
+          <td style="border: 1px solid #000; padding: 4px 6px; font-weight: bold;">${r.day}</td>
+          <td style="border: 1px solid #000; padding: 4px 6px; font-weight: bold; direction: ltr;">${r.time}</td>
+          <td style="border: 1px solid #000; padding: 4px 6px; font-weight: bold;">السنة ${r.gradeSection}</td>
+          <td style="border: 1px solid #000; padding: 4px 6px; font-weight: bold;">${r.field}</td>
+          <td style="border: 1px solid #000; padding: 4px 6px; font-weight: bold; text-align: right;">${r.learnings}</td>
+          <td style="border: 1px solid #000; padding: 4px 6px; font-weight: bold; text-align: right;">${r.content}</td>
+          <td style="border: 1px solid #000; padding: 4px 6px; font-weight: bold; color: ${r.isIncomplete ? '#b91c1c' : '#000'}; font-size: 11px;">
+            ${r.isIncomplete ? `مؤجلة (${postponedSessions.find(p => p.date === r.date && p.gradeSection === r.gradeSection)?.reason || 'نصف يوم تعليمي'})` : ''}
+          </td>
+        </tr>
+      `).join('');
+
+      const emptyRows = Array.from({ length: Math.max(0, 24 - rows.length) }).map(() => `
+        <tr style="border-bottom: 1px solid #000; height: 34px;">
+          <td style="border: 1px solid #000;">&nbsp;</td>
+          <td style="border: 1px solid #000;">&nbsp;</td>
+          <td style="border: 1px solid #000;">&nbsp;</td>
+          <td style="border: 1px solid #000;">&nbsp;</td>
+          <td style="border: 1px solid #000;">&nbsp;</td>
+          <td style="border: 1px solid #000;">&nbsp;</td>
+          <td style="border: 1px solid #000;">&nbsp;</td>
+        </tr>
+      `).join('');
+
+      sheetContent = `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px;">
+          <div style="text-align: right; font-weight: 900; font-size: 15px;">المؤسسة : ${teacherInfo.school}</div>
+          <div style="text-align: center;">
+            <div style="background: #000; color: #fff; padding: 6px 36px; border-radius: 9999px; font-weight: 900; font-size: 18px; display: inline-block;">الدفتر اليومي</div>
+          </div>
+          <div style="text-align: left; font-weight: 900; font-size: 15px;" dir="ltr">السنة الدراسية : ${academicYear}</div>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; border: 2px solid #000; text-align: center; font-size: 12px; margin-top: 12px;">
+          <thead>
+            <tr style="border-bottom: 2px solid #000; background: #f8fafc; font-weight: 900;">
+              <th style="border: 1px solid #000; padding: 6px; width: 9%;">اليوم</th>
+              <th style="border: 1px solid #000; padding: 6px; width: 11%;">الساعة</th>
+              <th style="border: 1px solid #000; padding: 6px; width: 10%;">القسم</th>
+              <th style="border: 1px solid #000; padding: 6px; width: 12%;">الميدان</th>
+              <th style="border: 1px solid #000; padding: 6px; width: 28%;">التعلمات</th>
+              <th style="border: 1px solid #000; padding: 6px; width: 20%;">محتوى التعلم</th>
+              <th style="border: 1px solid #000; padding: 6px; width: 10%;">ملاحظات</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+            ${emptyRows}
+          </tbody>
+        </table>
+        <div style="display: flex; justify-content: space-between; margin-top: 30px; font-weight: 900; font-size: 14px;">
+          <div>الأستاذ: ${showSignatureNames ? (teacherInfo.name || 'الزايز محمد الطاهر') : '..................................'}</div>
+          <div>المفتش: ${showSignatureNames ? (teacherInfo.inspector || 'السيد المفتش') : '..................................'}</div>
+          <div>المدير: ${showSignatureNames ? (teacherInfo.manager || 'السيد المدير') : '..................................'}</div>
+        </div>
+      `;
+    }
+
+    return `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>الدفتر اليومي - ${teacherInfo.name || 'الزايز محمد الطاهر'} - ${targetDate}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 8mm 6mm;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: 'Cairo', -apple-system, BlinkMacSystemFont, sans-serif;
+      direction: rtl;
+      text-align: right;
+      background: #ffffff;
+      color: #000000;
+      padding: 10px;
+      margin: 0;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .print-sheet {
+      width: 100%;
+      max-width: 850px;
+      margin: 0 auto;
+      background: #ffffff;
+      color: #000000;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 1080px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 2px solid #000000;
+      text-align: center;
+      font-size: 12px;
+      margin-top: 10px;
+    }
+    th, td {
+      border: 1px solid #000000;
+      padding: 4px 4px;
+      vertical-align: middle;
+    }
+    th {
+      font-weight: 900;
+      background-color: #f8fafc;
+    }
+    .action-bar-top {
+      position: fixed;
+      top: 15px;
+      left: 15px;
+      z-index: 1000;
+      display: flex;
+      gap: 10px;
+      background: rgba(15, 23, 42, 0.85);
+      padding: 8px 14px;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+      backdrop-filter: blur(8px);
+    }
+    .btn-print {
+      background: #2563eb;
+      color: #ffffff;
+      border: none;
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: 'Cairo', sans-serif;
+    }
+    @media print {
+      .action-bar-top {
+        display: none !important;
+      }
+      body {
+        padding: 0 !important;
+      }
+      .print-sheet {
+        min-height: auto !important;
+        max-width: 100% !important;
+      }
+    }
+  </style>
+  <script>
+    window.addEventListener('DOMContentLoaded', function() {
+      setTimeout(function() {
+        try {
+          window.print();
+        } catch(e) {}
+      }, 500);
+    });
+  </script>
+</head>
+<body>
+  <div class="action-bar-top">
+    <button class="btn-print" onclick="window.print()">🖨️ طباعة الآن (A4)</button>
+  </div>
+  <div class="print-sheet">
+    ${sheetContent}
+  </div>
+</body>
+</html>`;
+  };
+
+  const handleDownloadPrintFile = () => {
+    try {
+      const html = generatePrintableHtml();
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `الدفتر_اليومي_${targetDate}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      addNotification('success', 'تم تحميل ورقة الكراس', 'تم تنزيل ملف A4 للطباعة. افتحه في المتصفح وسيتم إطلاق أمر الطباعة مباشرة.');
+    } catch {
+      addNotification('error', 'فشل التحميل', 'تعذر تجهيز ملف الطباعة.');
+    }
+  };
+
+  const handlePrintSheet = () => {
+    try {
+      // Ensure we switch to desktop sheet view so the DOM is ready
+      setActiveView('desktop');
+      setDesktopSubView('sheet');
+
+      const html = generatePrintableHtml();
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      setPrintBlobUrl(url);
+
+      // Open print assistant modal so the user gets immediate visual feedback and a guaranteed 1-click fallback
+      setShowPrintModal(true);
+
+      // Attempt direct window.print()
+      try {
+        window.print();
+      } catch (err) {
+        console.warn("Direct window.print() failed:", err);
+      }
+
+      // Also attempt iframe printing
+      try {
+        let iframe = document.getElementById('print-virtual-iframe') as HTMLIFrameElement;
+        if (iframe) {
+          iframe.remove();
+        }
+        iframe = document.createElement('iframe');
+        iframe.id = 'print-virtual-iframe';
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        iframe.style.visibility = 'hidden';
+        iframe.src = url;
+        document.body.appendChild(iframe);
+        iframe.onload = () => {
+          setTimeout(() => {
+            try {
+              iframe.contentWindow?.focus();
+              iframe.contentWindow?.print();
+            } catch (e) {
+              console.warn("Iframe print blocked:", e);
+            }
+          }, 300);
+        };
+      } catch (err) {
+        console.warn("Could not append print iframe:", err);
+      }
+
+      addNotification('info', 'طباعة الكراس', 'تم تجهيز ورقة الكراس وفتح خيارات الطباعة A4 بنجاح.');
+    } catch {
+      addNotification('error', 'خطأ في الطباعة', 'تعذر تجهيز أمر الطباعة.');
+    }
+  };
+
   return (
     <div className={`min-h-screen flex flex-col md:flex-row overflow-hidden transition-colors duration-400 ${
       isLight ? 'bg-slate-100 text-slate-800' : isBlack ? 'bg-black text-white' : 'bg-slate-900 text-white'
@@ -866,9 +1142,62 @@ export default function App() {
             <p className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Digital PE Office</p>
           </div>
         </div>
-        <div className="flex-1 space-y-3">
+        <div className="flex-1 space-y-2">
           <IconButton icon={FileText} label="جدول اليوم" active={activeView === 'record'} onClick={() => setActiveView('record')} color={currentTheme.primary} isLight={isLight} isBlack={isBlack} />
-          <IconButton icon={Monitor} label="عرض على جهاز الكمبيوتر" active={activeView === 'desktop'} onClick={() => setActiveView('desktop')} color={currentTheme.primary} isLight={isLight} isBlack={isBlack} />
+          
+          {/* الكمبيوتر with sub-options */}
+          <div className="space-y-1">
+            <IconButton 
+              icon={Monitor} 
+              label="الكمبيوتر" 
+              active={activeView === 'desktop'} 
+              onClick={() => {
+                setActiveView('desktop');
+              }} 
+              color={currentTheme.primary} 
+              isLight={isLight} 
+              isBlack={isBlack} 
+            />
+            
+            {/* Sub-menu options under الكمبيوتر */}
+            <div className="mr-5 pr-3 border-r-2 border-slate-200/60 dark:border-white/10 space-y-1 my-1">
+              <button
+                onClick={() => {
+                  setActiveView('desktop');
+                  setDesktopSubView('sheet');
+                }}
+                className={`flex items-center gap-2.5 w-full py-2 px-3 rounded-xl text-xs font-black transition-all ${
+                  activeView === 'desktop' && desktopSubView === 'sheet'
+                    ? 'bg-blue-500/15 text-blue-500 font-black shadow-sm'
+                    : isLight ? 'text-slate-600 hover:bg-slate-100 hover:text-slate-900' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                <FileText size={15} />
+                <span>عرض الكراس اليومي</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveView('desktop');
+                  setDesktopSubView('dashboard');
+                }}
+                className={`flex items-center justify-between w-full py-2 px-3 rounded-xl text-xs font-black transition-all ${
+                  activeView === 'desktop' && desktopSubView === 'dashboard'
+                    ? 'bg-blue-500/15 text-blue-500 font-black shadow-sm'
+                    : isLight ? 'text-slate-600 hover:bg-slate-100 hover:text-slate-900' : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <BarChart3 size={15} />
+                  <span>لوحة متابعة الإنجاز والدروس</span>
+                </span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 font-black">
+                  {weekStats.rate}%
+                </span>
+              </button>
+            </div>
+          </div>
+
           <IconButton icon={MessageSquare} label="الملاحظات" active={activeView === 'notes'} onClick={() => setActiveView('notes')} color={currentTheme.primary} isLight={isLight} isBlack={isBlack} />
           <IconButton icon={List} label="توزيع الحصص" active={activeView === 'distribution'} onClick={() => setActiveView('distribution')} color={currentTheme.primary} isLight={isLight} isBlack={isBlack} />
           <IconButton icon={SettingsIcon} label="الإعدادات والثيمات" active={activeView === 'settings'} onClick={() => setActiveView('settings')} color={currentTheme.primary} isLight={isLight} isBlack={isBlack} />
@@ -915,6 +1244,15 @@ export default function App() {
                 </h2>
                 <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-orange-500/10 text-orange-500 font-black border border-orange-500/20">
                   أستاذ ت.ب.ر
+                </span>
+                <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-black border ${
+                  isLight 
+                    ? 'bg-blue-50 border-blue-200 text-blue-700' 
+                    : isBlack
+                      ? 'bg-zinc-900 border-zinc-700 text-sky-400'
+                      : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
+                }`}>
+                  {currentTermConfig.name} • {currentTermConfig.shortFieldName}
                 </span>
               </div>
               <p className={`text-sm flex items-center gap-1.5 mt-0.5 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
@@ -1156,12 +1494,109 @@ export default function App() {
                 </div>
               </GlassPanel>
 
-              {/* Time Configuration */}
+              {/* Time Configuration & Term Selection */}
               <GlassPanel isLight={isLight} isBlack={isBlack} className="p-8 space-y-8 border-t-4 border-t-blue-500">
-                <h3 className={`text-xl font-black flex items-center gap-3 ${isLight ? 'text-blue-600' : 'text-blue-400'}`}>
-                  <SettingsIcon size={24} /> الإعدادات الزمنية
-                </h3>
-                <div className="grid grid-cols-1 gap-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <h3 className={`text-xl font-black flex items-center gap-3 ${isLight ? 'text-blue-600' : 'text-blue-400'}`}>
+                    <Calendar size={24} /> الإعدادات الزمنية واختيار الفصل
+                  </h3>
+                  <span className={`px-4 py-1.5 rounded-full text-xs font-black border flex items-center gap-2 self-start sm:self-auto ${
+                    isLight 
+                      ? 'bg-blue-50 border-blue-200 text-blue-700' 
+                      : isBlack 
+                        ? 'bg-zinc-900 border-zinc-700 text-sky-400' 
+                        : 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+                  }`}>
+                    <Target size={14} /> الميدان النشط: {currentTermConfig.shortFieldName}
+                  </span>
+                </div>
+
+                {/* Term / Field Selector */}
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <label className={`text-xs font-black uppercase tracking-wider ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                      اختيار الفصل الدراسي
+                    </label>
+                    <span className={`text-[11px] font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                      الميدان المعتمد أوتوماتيكياً: <strong className={isLight ? 'text-blue-700' : 'text-blue-400'}>{currentTermConfig.fieldName}</strong>
+                    </span>
+                  </div>
+
+                  {/* Dropdown Menu (قائمة منسدلة لاختيار الفصل) */}
+                  <div className="relative">
+                    <select
+                      value={selectedTerm}
+                      onChange={(e) => {
+                        const termKey = e.target.value as TermKey;
+                        setSelectedTerm(termKey);
+                        addNotification(
+                          'success',
+                          `تم تفعيل ${TERMS[termKey].name}`,
+                          `الميدان المعتمد أوتوماتيكياً: «${TERMS[termKey].fieldName}»`
+                        );
+                      }}
+                      className={`w-full py-4 pr-12 pl-12 rounded-2xl border text-sm font-black appearance-none cursor-pointer transition-all ${
+                        isLight
+                          ? 'bg-slate-50 border-slate-200 text-slate-800 hover:border-slate-300 focus:bg-white focus:border-blue-500 shadow-sm'
+                          : isBlack
+                            ? 'bg-zinc-900 border-zinc-800 text-white hover:border-zinc-700 focus:border-sky-500'
+                            : 'bg-white/5 border-white/10 text-white hover:border-white/20 focus:border-blue-400'
+                      }`}
+                    >
+                      <option value="1" className={isLight ? 'text-slate-900 bg-white' : 'text-white bg-slate-900'}>
+                        الفصل الأول — ميدان الوضعيات والتنقلات
+                      </option>
+                      <option value="2" className={isLight ? 'text-slate-900 bg-white' : 'text-white bg-slate-900'}>
+                        الفصل الثاني — ميدان الحركات القاعدية
+                      </option>
+                      <option value="3" className={isLight ? 'text-slate-900 bg-white' : 'text-white bg-slate-900'}>
+                        الفصل الثالث — ميدان الهيكلة والبناء
+                      </option>
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-blue-500">
+                      <Calendar size={20} />
+                    </div>
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                      <ChevronDown size={20} />
+                    </div>
+                  </div>
+
+                  {/* Quick Select Buttons: الفصل الأول / الفصل الثاني / الفصل الثالث فقط */}
+                  <div className="grid grid-cols-3 gap-2.5 pt-1">
+                    {(Object.keys(TERMS) as TermKey[]).map((termKey) => {
+                      const term = TERMS[termKey];
+                      const isSelected = selectedTerm === termKey;
+                      return (
+                        <button
+                          key={termKey}
+                          type="button"
+                          onClick={() => {
+                            setSelectedTerm(termKey);
+                            addNotification(
+                              'success',
+                              `تم تفعيل ${term.name}`,
+                              `الميدان المعتمد أوتوماتيكياً: «${term.fieldName}»`
+                            );
+                          }}
+                          className={`py-3.5 px-3 rounded-2xl text-xs md:text-sm font-black transition-all duration-200 text-center cursor-pointer border ${
+                            isSelected
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/30 ring-2 ring-blue-500/20'
+                              : isLight
+                                ? 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                                : isBlack
+                                  ? 'bg-zinc-900 border-zinc-800 text-slate-300 hover:bg-zinc-800 hover:text-white'
+                                  : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 hover:text-white'
+                          }`}
+                        >
+                          {term.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Date Fields */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-200/60 dark:border-white/10">
                   <ModernField label="تاريخ بداية الفصل" type="date" icon={Calendar} value={semesterStart} onChange={setSemesterStart} color={currentTheme.primary} isLight={isLight} isBlack={isBlack} />
                   <ModernField label="تاريخ معاينة الدفتر" type="date" icon={Clock} value={targetDate} onChange={setTargetDate} color={currentTheme.primary} isLight={isLight} isBlack={isBlack} />
                 </div>
@@ -1271,600 +1706,637 @@ export default function App() {
                </div>
             </GlassPanel>
           ) : activeView === 'desktop' ? (
-            /* Desktop / Paper Sheet View */
+            /* Desktop / Computer View with Sub-options: Sheet or Dashboard */
             <div className="space-y-6">
-              {/* Action & Control Bar */}
-              <div className={`p-6 rounded-3xl border flex flex-col lg:flex-row items-center justify-between gap-6 no-print ${
+              {/* Top Sub-Navigation Header under "الكمبيوتر" */}
+              <div className={`p-6 rounded-3xl border flex flex-col md:flex-row items-center justify-between gap-6 no-print ${
                 isLight ? 'bg-white border-slate-200 shadow-sm' : isBlack ? 'bg-zinc-900 border-zinc-800' : 'bg-white/5 border-white/10'
               }`}>
-                <div className="flex items-center gap-4 text-right w-full lg:w-auto">
+                <div className="flex items-center gap-4 text-right w-full md:w-auto">
                   <div className="p-3.5 rounded-2xl bg-blue-500/10 text-blue-500 border border-blue-500/20 shrink-0">
                     <Monitor size={28} />
                   </div>
                   <div>
-                    <h3 className={`text-xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                      عرض الكراس اليومي على جهاز الكمبيوتر
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className={`text-xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                        الكمبيوتر
+                      </h3>
+                      <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-500 font-black border border-blue-500/20">
+                        {desktopSubView === 'sheet' ? 'عرض الكراس اليومي' : 'لوحة متابعة الإنجاز والدروس'}
+                      </span>
+                    </div>
                     <p className={`text-xs font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                      ورقة نموذجية مطابقة للدفتر اليومي الورقي الرسمي (معاينة وطباعة A4 لليوم الحالي)
+                      {desktopSubView === 'sheet'
+                        ? 'ورقة نموذجية مطابقة للدفتر اليومي الورقي الرسمي (معاينة وطباعة A4 لليوم الحالي)'
+                        : 'متابعة بصرية دقيقة لإحصائيات ونسب إنجاز الدروس الأسبوعية واليومية'}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
-                  {/* Date Selector */}
-                  <div className={`flex items-center gap-1 p-1 rounded-xl border ${
-                    isLight ? 'bg-slate-50 border-slate-200' : isBlack ? 'bg-black border-zinc-800' : 'bg-slate-900 border-white/10'
-                  }`}>
-                    <button 
-                      onClick={() => changeDay(-1)} 
-                      className={`p-2 rounded-lg transition-colors ${isLight ? 'hover:bg-slate-200 text-slate-700' : 'hover:bg-white/10 text-slate-300'}`}
-                      title="اليوم السابق"
-                    >
-                      <ChevronRight size={18} />
-                    </button>
-                    <input 
-                      type="date" 
-                      value={targetDate} 
-                      onChange={(e) => setTargetDate(e.target.value)}
-                      className={`bg-transparent text-xs font-black px-2 py-1 outline-none cursor-pointer ${
-                        isLight ? 'text-slate-900' : 'text-white'
-                      }`}
-                    />
-                    <button 
-                      onClick={() => changeDay(1)} 
-                      className={`p-2 rounded-lg transition-colors ${isLight ? 'hover:bg-slate-200 text-slate-700' : 'hover:bg-white/10 text-slate-300'}`}
-                      title="اليوم التالي"
-                    >
-                      <ChevronLeft size={18} />
-                    </button>
-                  </div>
-
-                  {/* Zoom Controls */}
-                  <div className={`hidden sm:flex items-center gap-1 p-1 rounded-xl border ${
-                    isLight ? 'bg-slate-50 border-slate-200' : isBlack ? 'bg-black border-zinc-800' : 'bg-slate-900 border-white/10'
-                  }`}>
-                    <button 
-                      onClick={() => setSheetZoom(prev => Math.max(70, prev - 10))}
-                      className={`p-2 rounded-lg transition-colors ${isLight ? 'hover:bg-slate-200 text-slate-700' : 'hover:bg-white/10 text-slate-300'}`}
-                      title="تصغير الورقة"
-                    >
-                      <ZoomOut size={16} />
-                    </button>
-                    <span className={`text-[11px] font-black px-2 font-mono ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                      {sheetZoom}%
-                    </span>
-                    <button 
-                      onClick={() => setSheetZoom(prev => Math.min(130, prev + 10))}
-                      className={`p-2 rounded-lg transition-colors ${isLight ? 'hover:bg-slate-200 text-slate-700' : 'hover:bg-white/10 text-slate-300'}`}
-                      title="تكبير الورقة"
-                    >
-                      <ZoomIn size={16} />
-                    </button>
-                  </div>
-
-                  {/* Toggle Signatures */}
-                  <button
-                    onClick={() => setShowSignatureNames(!showSignatureNames)}
-                    className={`px-3.5 py-2.5 rounded-xl text-xs font-black border transition-all ${
-                      showSignatureNames
-                        ? isLight ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-blue-500/20 border-blue-500/30 text-blue-400'
-                        : isLight ? 'bg-slate-100 border-slate-300 text-slate-600' : 'bg-white/5 border-white/10 text-slate-400'
-                    }`}
-                    title="تبديل إظهار الأسماء أو أسطر النقط للتوقيع اليدوي"
-                  >
-                    {showSignatureNames ? 'أسماء التوقيع: ظاهرة' : 'أسماء التوقيع: منقطة'}
-                  </button>
-
-                  {/* Print Button */}
-                  <button
-                    onClick={() => window.print()}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-blue-600/30 active:scale-95"
-                  >
-                    <Printer size={16} />
-                    <span>طباعة الكراس (A4)</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Paper Canvas Display (Simulating Computer Desktop screen with physical A4 Paper) */}
-              <div className={`p-4 md:p-10 rounded-[2.5rem] border overflow-x-auto flex justify-center no-print transition-all ${
-                isLight ? 'bg-slate-200/80 border-slate-300/80 shadow-inner' : isBlack ? 'bg-[#09090b] border-zinc-900' : 'bg-slate-950/60 border-white/5 shadow-inner'
-              }`}>
-                <div 
-                  style={{ transform: `scale(${sheetZoom / 100})`, transformOrigin: 'top center' }}
-                  className="transition-transform duration-200 w-full flex justify-center"
-                >
-                  <div 
-                    id="printable-daily-sheet"
-                    className="bg-white text-black w-full max-w-[850px] min-h-[1180px] p-8 md:p-12 shadow-2xl rounded-sm border border-slate-300 relative text-right flex flex-col justify-between"
-                    style={{ fontFamily: "'Cairo', sans-serif" }}
-                  >
-                    {/* Sheet Header */}
-                    <div>
-                      <div className="flex items-center justify-between pb-3">
-                        <div className="text-right">
-                          <span className="text-sm md:text-base font-black text-black">
-                            المؤسسة : {teacherInfo.school}
-                          </span>
-                        </div>
-                        <div className="text-center">
-                          <div className="bg-black text-white px-9 py-2 rounded-full font-black text-lg md:text-xl tracking-wider shadow-sm inline-block">
-                            الدفتر اليومي
-                          </div>
-                        </div>
-                        <div className="text-left" dir="ltr">
-                          <span className="text-sm md:text-base font-black text-black">
-                            السنة الدراسية : {academicYear}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Sheet Table */}
-                      <div className="mt-4 overflow-hidden">
-                        <table className="w-full border-collapse border-2 border-black text-center text-[12px] md:text-[13px] leading-tight text-black">
-                          <thead>
-                            <tr className="border-b-2 border-black bg-slate-50 font-black">
-                              <th className="border border-black py-2.5 px-1.5 w-[9%] text-black font-black">اليوم</th>
-                              <th className="border border-black py-2.5 px-1.5 w-[11%] text-black font-black">الساعة</th>
-                              <th className="border border-black py-2.5 px-1.5 w-[10%] text-black font-black">القسم</th>
-                              <th className="border border-black py-2.5 px-1.5 w-[12%] text-black font-black">الميدان</th>
-                              <th className="border border-black py-2.5 px-2 w-[28%] text-black font-black">التعلمات</th>
-                              <th className="border border-black py-2.5 px-2 w-[20%] text-black font-black">محتوى التعلم</th>
-                              <th className="border border-black py-2.5 px-1.5 w-[10%] text-black font-black">ملاحظات</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {/* Rows with actual sessions for today */}
-                            {rows.map((row, idx) => (
-                              <tr key={`session-${idx}`} className={`border-b border-black min-h-[34px] ${row.isIncomplete ? 'bg-red-50/70' : ''}`}>
-                                <td className="border border-black py-2 px-1 font-bold">{row.day}</td>
-                                <td className="border border-black py-2 px-1 font-mono font-bold text-[11px] md:text-xs" dir="ltr">{row.time}</td>
-                                <td className="border border-black py-2 px-1 font-bold">السنة {row.gradeSection}</td>
-                                <td className="border border-black py-2 px-1 font-bold">{row.field}</td>
-                                <td className="border border-black py-2 px-2 font-bold text-right leading-snug">{row.learnings}</td>
-                                <td className="border border-black py-2 px-2 font-bold text-right leading-snug">{row.content}</td>
-                                <td className="border border-black py-2 px-1 text-[11px] font-bold">
-                                  {row.isIncomplete ? (
-                                    <span className="text-red-700 font-black">
-                                      مؤجلة ({postponedSessions.find(p => p.date === row.date && p.gradeSection === row.gradeSection)?.reason || 'نصف يوم تعليمي'})
-                                    </span>
-                                  ) : (
-                                    ''
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-
-                            {/* Empty filler rows to complete the classic paper sheet layout identical to PDF */}
-                            {Array.from({ length: Math.max(0, 24 - rows.length) }).map((_, fIdx) => (
-                              <tr key={`empty-${fIdx}`} className="border-b border-black h-[34px]">
-                                <td className="border border-black py-2 px-1">&nbsp;</td>
-                                <td className="border border-black py-2 px-1">&nbsp;</td>
-                                <td className="border border-black py-2 px-1">&nbsp;</td>
-                                <td className="border border-black py-2 px-1">&nbsp;</td>
-                                <td className="border border-black py-2 px-2">&nbsp;</td>
-                                <td className="border border-black py-2 px-2">&nbsp;</td>
-                                <td className="border border-black py-2 px-1">&nbsp;</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-
-                    {/* Sheet Footer Signatures */}
-                    <div className="pt-8 pb-4 flex justify-between items-center text-sm md:text-base font-black text-black">
-                      <div className="text-right">
-                        الأستاذ: {showSignatureNames ? (teacherInfo.name || "الزايز محمد الطاهر") : ".................................."}
-                      </div>
-                      <div className="text-center">
-                        المفتش: {showSignatureNames ? (teacherInfo.inspector || "السيد المفتش") : ".................................."}
-                      </div>
-                      <div className="text-left">
-                        المدير: {showSignatureNames ? (teacherInfo.manager || "السيد المدير") : ".................................."}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            /* Record View (Daily Lessons & Visual Dashboard) */
-            <div className="space-y-8">
-              
-              {/* --- DASHBOARD: Weekly & Daily Achievement Visual Statistics --- */}
-              <div className={`rounded-[2.5rem] border transition-all duration-300 overflow-hidden shadow-xl ${
-                isLight 
-                  ? 'bg-white/95 border-slate-200/90 shadow-slate-200/60' 
-                  : isBlack 
-                    ? 'bg-[#0c0c0e] border-zinc-800 shadow-2xl' 
-                    : 'bg-white/5 border-white/10 backdrop-blur-md shadow-2xl'
-              }`}>
-                {/* Dashboard Header Bar */}
-                <div className={`p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b ${
-                  isLight ? 'border-slate-100 bg-slate-50/60' : isBlack ? 'border-zinc-800/80 bg-zinc-900/30' : 'border-white/5 bg-white/[0.02]'
+                {/* Sub-view switcher tabs */}
+                <div className={`p-1.5 rounded-2xl border flex items-center gap-1.5 w-full md:w-auto justify-center md:justify-end ${
+                  isLight ? 'bg-slate-100 border-slate-200' : isBlack ? 'bg-black border-zinc-800' : 'bg-white/5 border-white/10'
                 }`}>
-                  <div className="flex items-center gap-4">
-                    <div className="p-3.5 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/25 ring-4 ring-blue-500/10 shrink-0">
-                      <BarChart3 size={24} />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-3">
-                        <h3 className={`text-xl md:text-2xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                          لوحة متابعة الإنجاز والدروس
-                        </h3>
-                        <span className="hidden sm:inline-flex px-3 py-1 rounded-full text-[10px] font-black bg-blue-500/10 text-blue-500 border border-blue-500/20">
-                          {dashboardScope === 'week' ? 'إحصائيات أسبوعية' : 'إحصائيات يومية'}
-                        </span>
+                  <button
+                    onClick={() => setDesktopSubView('sheet')}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black transition-all ${
+                      desktopSubView === 'sheet'
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                        : isLight ? 'text-slate-600 hover:text-slate-900 hover:bg-white' : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <FileText size={16} />
+                    <span>عرض الكراس اليومي</span>
+                  </button>
+
+                  <button
+                    onClick={() => setDesktopSubView('dashboard')}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black transition-all ${
+                      desktopSubView === 'dashboard'
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                        : isLight ? 'text-slate-600 hover:text-slate-900 hover:bg-white' : 'text-slate-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <BarChart3 size={16} />
+                    <span>لوحة متابعة الإنجاز والدروس</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                      desktopSubView === 'dashboard' ? 'bg-white/20 text-white' : 'bg-emerald-500/15 text-emerald-500'
+                    }`}>
+                      {weekStats.rate}%
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Sub-view Content: Sheet or Dashboard */}
+              {desktopSubView === 'sheet' ? (
+                <div className="space-y-6">
+                  {/* Action & Control Bar */}
+                  <div className={`p-6 rounded-3xl border flex flex-col lg:flex-row items-center justify-between gap-6 no-print ${
+                    isLight ? 'bg-white border-slate-200 shadow-sm' : isBlack ? 'bg-zinc-900 border-zinc-800' : 'bg-white/5 border-white/10'
+                  }`}>
+                    <div className="flex items-center gap-4 text-right w-full lg:w-auto">
+                      <div className="p-3 rounded-2xl bg-orange-500/10 text-orange-500 border border-orange-500/20 shrink-0">
+                        <FileText size={24} />
                       </div>
-                      <p className={`text-xs mt-1 font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                        {dashboardScope === 'week' 
-                          ? `الأسبوع الجاري: من ${weekStats.sundayFormatted} إلى ${weekStats.thursdayFormatted} (16 حصة مبرمجة)`
-                          : `اليوم المختار: ${getDayName(new Date(targetDate))} ${formatDate(new Date(targetDate))} (${rows.length} حصص)`}
-                      </p>
+                      <div>
+                        <h4 className={`text-base font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                          ورقة الكراس اليومي (معاينة وطباعة A4)
+                        </h4>
+                        <p className={`text-xs font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                          ليوم {getDayName(new Date(targetDate))} — {formatDate(new Date(targetDate))} ({rows.length} حصص مبرمجة)
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
+                      {/* Date Selector */}
+                      <div className={`flex items-center gap-1 p-1 rounded-xl border ${
+                        isLight ? 'bg-slate-50 border-slate-200' : isBlack ? 'bg-black border-zinc-800' : 'bg-slate-900 border-white/10'
+                      }`}>
+                        <button 
+                          onClick={() => changeDay(-1)} 
+                          className={`p-2 rounded-lg transition-colors ${isLight ? 'hover:bg-slate-200 text-slate-700' : 'hover:bg-white/10 text-slate-300'}`}
+                          title="اليوم السابق"
+                        >
+                          <ChevronRight size={18} />
+                        </button>
+                        <input 
+                          type="date" 
+                          value={targetDate} 
+                          onChange={(e) => setTargetDate(e.target.value)}
+                          className={`bg-transparent text-xs font-black px-2 py-1 outline-none cursor-pointer ${
+                            isLight ? 'text-slate-900' : 'text-white'
+                          }`}
+                        />
+                        <button 
+                          onClick={() => changeDay(1)} 
+                          className={`p-2 rounded-lg transition-colors ${isLight ? 'hover:bg-slate-200 text-slate-700' : 'hover:bg-white/10 text-slate-300'}`}
+                          title="اليوم التالي"
+                        >
+                          <ChevronLeft size={18} />
+                        </button>
+                      </div>
+
+                      {/* Zoom Controls */}
+                      <div className={`hidden sm:flex items-center gap-1 p-1 rounded-xl border ${
+                        isLight ? 'bg-slate-50 border-slate-200' : isBlack ? 'bg-black border-zinc-800' : 'bg-slate-900 border-white/10'
+                      }`}>
+                        <button 
+                          onClick={() => setSheetZoom(prev => Math.max(70, prev - 10))}
+                          className={`p-2 rounded-lg transition-colors ${isLight ? 'hover:bg-slate-200 text-slate-700' : 'hover:bg-white/10 text-slate-300'}`}
+                          title="تصغير الورقة"
+                        >
+                          <ZoomOut size={16} />
+                        </button>
+                        <span className={`text-[11px] font-black px-2 font-mono ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                          {sheetZoom}%
+                        </span>
+                        <button 
+                          onClick={() => setSheetZoom(prev => Math.min(130, prev + 10))}
+                          className={`p-2 rounded-lg transition-colors ${isLight ? 'hover:bg-slate-200 text-slate-700' : 'hover:bg-white/10 text-slate-300'}`}
+                          title="تكبير الورقة"
+                        >
+                          <ZoomIn size={16} />
+                        </button>
+                      </div>
+
+                      {/* Toggle Signatures */}
+                      <button
+                        onClick={() => setShowSignatureNames(!showSignatureNames)}
+                        className={`px-3.5 py-2.5 rounded-xl text-xs font-black border transition-all ${
+                          showSignatureNames
+                            ? isLight ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-blue-500/20 border-blue-500/30 text-blue-400'
+                            : isLight ? 'bg-slate-100 border-slate-300 text-slate-600' : 'bg-white/5 border-white/10 text-slate-400'
+                        }`}
+                        title="تبديل إظهار الأسماء أو أسطر النقط للتوقيع اليدوي"
+                      >
+                        {showSignatureNames ? 'أسماء التوقيع: ظاهرة' : 'أسماء التوقيع: منقطة'}
+                      </button>
+
+                      {/* Download Print File (A4) */}
+                      <button
+                        onClick={handleDownloadPrintFile}
+                        className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-black border transition-all ${
+                          isLight ? 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700' : 'bg-white/5 border-white/10 hover:bg-white/10 text-white'
+                        }`}
+                        title="تحميل ملف ورقة الكراس كصفحة A4 للطباعة"
+                      >
+                        <Download size={15} />
+                        <span>تحميل ملف A4</span>
+                      </button>
+
+                      {/* Print Button - Calls handlePrintSheet to trigger print and open assistant */}
+                      <button
+                        onClick={handlePrintSheet}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-blue-600/30 active:scale-95"
+                      >
+                        <Printer size={16} />
+                        <span>طباعة الكراس (A4)</span>
+                      </button>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 self-end md:self-auto">
-                    {/* Scope Selector: Week vs Day */}
-                    <div className={`p-1 rounded-xl border flex items-center gap-1 ${
-                      isLight ? 'bg-white border-slate-200' : isBlack ? 'bg-black border-zinc-800' : 'bg-white/5 border-white/10'
-                    }`}>
-                      <button
-                        onClick={() => setDashboardScope('week')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
-                          dashboardScope === 'week'
-                            ? 'bg-blue-600 text-white shadow-sm'
-                            : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        الأسبوع الحالي
-                      </button>
-                      <button
-                        onClick={() => setDashboardScope('today')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
-                          dashboardScope === 'today'
-                            ? 'bg-blue-600 text-white shadow-sm'
-                            : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        اليوم المحدد
-                      </button>
-                    </div>
-
-                    {/* Toggle Collapse */}
-                    <button
-                      onClick={() => setIsDashboardOpen(!isDashboardOpen)}
-                      className={`p-2.5 rounded-xl border transition-all ${
-                        isLight 
-                          ? 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100' 
-                          : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 text-white'
-                      }`}
-                      title={isDashboardOpen ? "طي لوحة الإحصائيات" : "توسيع لوحة الإحصائيات"}
+                  {/* Paper Canvas Display (Simulating Computer Desktop screen with physical A4 Paper) */}
+                  <div className={`p-4 md:p-10 rounded-[2.5rem] border overflow-x-auto flex justify-center sheet-container-wrapper transition-all ${
+                    isLight ? 'bg-slate-200/80 border-slate-300/80 shadow-inner' : isBlack ? 'bg-[#09090b] border-zinc-900' : 'bg-slate-950/60 border-white/5 shadow-inner'
+                  }`}>
+                    <div 
+                      style={{ transform: `scale(${sheetZoom / 100})`, transformOrigin: 'top center' }}
+                      className="transition-transform duration-200 w-full flex justify-center sheet-scale-wrapper"
                     >
-                      {isDashboardOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                    </button>
+                      <div 
+                        id="printable-daily-sheet"
+                        className="bg-white text-black w-full max-w-[850px] min-h-[1180px] p-8 md:p-12 shadow-2xl rounded-sm border border-slate-300 relative text-right flex flex-col justify-between"
+                        style={{ fontFamily: "'Cairo', sans-serif" }}
+                      >
+                        {/* Sheet Header */}
+                        <div>
+                          <div className="flex items-center justify-between pb-3">
+                            <div className="text-right">
+                              <span className="text-sm md:text-base font-black text-black">
+                                المؤسسة : {teacherInfo.school}
+                              </span>
+                            </div>
+                            <div className="text-center">
+                              <div className="bg-black text-white px-9 py-2 rounded-full font-black text-lg md:text-xl tracking-wider shadow-sm inline-block">
+                                الدفتر اليومي
+                              </div>
+                            </div>
+                            <div className="text-left" dir="ltr">
+                              <span className="text-sm md:text-base font-black text-black">
+                                السنة الدراسية : {academicYear}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Sheet Table */}
+                          <div className="mt-4 overflow-hidden">
+                            <table className="w-full border-collapse border-2 border-black text-center text-[12px] md:text-[13px] leading-tight text-black">
+                              <thead>
+                                <tr className="border-b-2 border-black bg-slate-50 font-black">
+                                  <th className="border border-black py-2.5 px-1.5 w-[9%] text-black font-black">اليوم</th>
+                                  <th className="border border-black py-2.5 px-1.5 w-[11%] text-black font-black">الساعة</th>
+                                  <th className="border border-black py-2.5 px-1.5 w-[10%] text-black font-black">القسم</th>
+                                  <th className="border border-black py-2.5 px-1.5 w-[12%] text-black font-black">الميدان</th>
+                                  <th className="border border-black py-2.5 px-2 w-[28%] text-black font-black">التعلمات</th>
+                                  <th className="border border-black py-2.5 px-2 w-[20%] text-black font-black">محتوى التعلم</th>
+                                  <th className="border border-black py-2.5 px-1.5 w-[10%] text-black font-black">ملاحظات</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {/* Rows with actual sessions for today */}
+                                {rows.map((row, idx) => (
+                                  <tr key={`session-${idx}`} className={`border-b border-black min-h-[34px] ${row.isIncomplete ? 'bg-red-50/70' : ''}`}>
+                                    <td className="border border-black py-2 px-1 font-bold">{row.day}</td>
+                                    <td className="border border-black py-2 px-1 font-mono font-bold text-[11px] md:text-xs" dir="ltr">{row.time}</td>
+                                    <td className="border border-black py-2 px-1 font-bold">السنة {row.gradeSection}</td>
+                                    <td className="border border-black py-2 px-1 font-bold">{row.field}</td>
+                                    <td className="border border-black py-2 px-2 font-bold text-right leading-snug">{row.learnings}</td>
+                                    <td className="border border-black py-2 px-2 font-bold text-right leading-snug">{row.content}</td>
+                                    <td className="border border-black py-2 px-1 text-[11px] font-bold">
+                                      {row.isIncomplete ? (
+                                        <span className="text-red-700 font-black">
+                                          مؤجلة ({postponedSessions.find(p => p.date === row.date && p.gradeSection === row.gradeSection)?.reason || 'نصف يوم تعليمي'})
+                                        </span>
+                                      ) : (
+                                        ''
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+
+                                {/* Empty filler rows to complete the classic paper sheet layout identical to PDF */}
+                                {Array.from({ length: Math.max(0, 24 - rows.length) }).map((_, fIdx) => (
+                                  <tr key={`empty-${fIdx}`} className="border-b border-black h-[34px]">
+                                    <td className="border border-black py-2 px-1">&nbsp;</td>
+                                    <td className="border border-black py-2 px-1">&nbsp;</td>
+                                    <td className="border border-black py-2 px-1">&nbsp;</td>
+                                    <td className="border border-black py-2 px-1">&nbsp;</td>
+                                    <td className="border border-black py-2 px-2">&nbsp;</td>
+                                    <td className="border border-black py-2 px-2">&nbsp;</td>
+                                    <td className="border border-black py-2 px-1">&nbsp;</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        {/* Sheet Footer Signatures */}
+                        <div className="pt-8 pb-4 flex justify-between items-center text-sm md:text-base font-black text-black">
+                          <div className="text-right">
+                            الأستاذ: {showSignatureNames ? (teacherInfo.name || "الزايز محمد الطاهر") : ".................................."}
+                          </div>
+                          <div className="text-center">
+                            المفتش: {showSignatureNames ? (teacherInfo.inspector || "السيد المفتش") : ".................................."}
+                          </div>
+                          <div className="text-left">
+                            المدير: {showSignatureNames ? (teacherInfo.manager || "السيد المدير") : ".................................."}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-
-                {/* Collapsed State Bar */}
-                {!isDashboardOpen && (
-                  <div className="p-4 md:px-8 flex flex-wrap items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 shrink-0">
-                        <DonutPieChart
-                          completed={dashboardScope === 'week' ? weekStats.totalCompleted : todayStats.completed}
-                          postponed={dashboardScope === 'week' ? weekStats.totalPostponed : todayStats.postponed}
-                          size={40}
-                          isLight={isLight}
-                          isBlack={isBlack}
-                        />
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className={`text-sm font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                          نسبة الإنجاز: {dashboardScope === 'week' ? `${weekStats.rate}%` : `${todayStats.rate}%`}
-                        </span>
-                        <span className="text-xs font-bold text-emerald-500">
-                          {dashboardScope === 'week' ? `${weekStats.totalCompleted} منجزة` : `${todayStats.completed} منجزة`}
-                        </span>
-                        <span className="text-xs font-bold text-rose-500">
-                          {dashboardScope === 'week' ? `${weekStats.totalPostponed} مؤجلة` : `${todayStats.postponed} مؤجلة`}
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setIsDashboardOpen(true)}
-                      className="text-xs font-black text-blue-500 hover:underline flex items-center gap-1"
-                    >
-                      عرض التفاصيل والرسوم البيانية الكاملة <ChevronDown size={14} />
-                    </button>
-                  </div>
-                )}
-
-                {/* Expanded Dashboard Body */}
-                {isDashboardOpen && (
-                  <div className="p-6 md:p-8 space-y-8 animate-in fade-in duration-300">
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-                      
-                      {/* Left Side: Interactive Pie Chart (4 cols) */}
-                      <div className={`lg:col-span-4 p-6 rounded-3xl border flex flex-col items-center text-center justify-center relative ${
-                        isLight 
-                          ? 'bg-slate-50/80 border-slate-200' 
-                          : isBlack 
-                            ? 'bg-zinc-900/60 border-zinc-800' 
-                            : 'bg-white/[0.03] border-white/5'
-                      }`}>
-                        <div className="w-full flex items-center justify-between mb-2">
-                          <span className={`text-xs font-black flex items-center gap-1.5 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                            <PieChartIcon size={16} className="text-blue-500" />
-                            مخطط توزيع الحصص
-                          </span>
-                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                            (dashboardScope === 'week' ? weekStats.rate : todayStats.rate) >= 80
-                              ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
-                              : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
-                          }`}>
-                            {(dashboardScope === 'week' ? weekStats.rate : todayStats.rate) >= 90
-                              ? '🌟 إنجاز ممتاز'
-                              : (dashboardScope === 'week' ? weekStats.rate : todayStats.rate) >= 75
-                                ? '👍 أداء جيد جداً'
-                                : '⚠️ يحتاج متابعة'}
-                          </span>
+              ) : (
+                /* Sub-View: Complete Dashboard (لوحة متابعة الإنجاز والدروس) */
+                <div className="space-y-8 animate-in fade-in duration-300">
+                  <div className={`rounded-[2.5rem] border transition-all duration-300 overflow-hidden shadow-xl ${
+                    isLight 
+                      ? 'bg-white/95 border-slate-200/90 shadow-slate-200/60' 
+                      : isBlack 
+                        ? 'bg-[#0c0c0e] border-zinc-800 shadow-2xl' 
+                        : 'bg-white/5 border-white/10 backdrop-blur-md shadow-2xl'
+                  }`}>
+                    {/* Dashboard Header Bar */}
+                    <div className={`p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b ${
+                      isLight ? 'border-slate-100 bg-slate-50/60' : isBlack ? 'border-zinc-800/80 bg-zinc-900/30' : 'border-white/5 bg-white/[0.02]'
+                    }`}>
+                      <div className="flex items-center gap-4">
+                        <div className="p-3.5 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/25 ring-4 ring-blue-500/10 shrink-0">
+                          <BarChart3 size={24} />
                         </div>
-
-                        {/* Donut Chart */}
-                        <div className="my-2">
-                          <DonutPieChart
-                            completed={dashboardScope === 'week' ? weekStats.totalCompleted : todayStats.completed}
-                            postponed={dashboardScope === 'week' ? weekStats.totalPostponed : todayStats.postponed}
-                            size={165}
-                            isLight={isLight}
-                            isBlack={isBlack}
-                          />
-                        </div>
-
-                        {/* Chart Legend */}
-                        <div className="w-full grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-200/40 dark:border-white/5">
-                          <div className={`p-2 rounded-xl flex flex-col items-center ${isLight ? 'bg-white border border-slate-200/60' : 'bg-white/5'}`}>
-                            <div className="flex items-center gap-1.5 text-[11px] font-black text-emerald-500">
-                              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                              <span>منجزة</span>
-                            </div>
-                            <span className={`text-sm font-black mt-0.5 ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                              {dashboardScope === 'week' ? weekStats.totalCompleted : todayStats.completed}
-                            </span>
-                            <span className="text-[10px] font-bold text-slate-400">
-                              {dashboardScope === 'week' 
-                                ? `${weekStats.totalSlots > 0 ? ((weekStats.totalCompleted / weekStats.totalSlots) * 100).toFixed(0) : 0}%` 
-                                : `${todayStats.total > 0 ? ((todayStats.completed / todayStats.total) * 100).toFixed(0) : 0}%`}
+                        <div>
+                          <div className="flex items-center gap-3">
+                            <h3 className={`text-xl md:text-2xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                              لوحة متابعة الإنجاز والدروس
+                            </h3>
+                            <span className="hidden sm:inline-flex px-3 py-1 rounded-full text-[10px] font-black bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                              {dashboardScope === 'week' ? 'إحصائيات أسبوعية' : 'إحصائيات يومية'}
                             </span>
                           </div>
-
-                          <div className={`p-2 rounded-xl flex flex-col items-center ${isLight ? 'bg-white border border-slate-200/60' : 'bg-white/5'}`}>
-                            <div className="flex items-center gap-1.5 text-[11px] font-black text-rose-500">
-                              <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
-                              <span>مؤجلة</span>
-                            </div>
-                            <span className={`text-sm font-black mt-0.5 ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                              {dashboardScope === 'week' ? weekStats.totalPostponed : todayStats.postponed}
-                            </span>
-                            <span className="text-[10px] font-bold text-slate-400">
-                              {dashboardScope === 'week' 
-                                ? `${weekStats.totalSlots > 0 ? ((weekStats.totalPostponed / weekStats.totalSlots) * 100).toFixed(0) : 0}%` 
-                                : `${todayStats.total > 0 ? ((todayStats.postponed / todayStats.total) * 100).toFixed(0) : 0}%`}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Right Side: 4 KPI Cards (8 cols) */}
-                      <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        
-                        {/* KPI 1: معدل الإنجاز */}
-                        <div className={`p-6 rounded-3xl border transition-all ${
-                          isLight 
-                            ? 'bg-gradient-to-br from-blue-50/80 to-white border-blue-200/70 shadow-sm' 
-                            : isBlack 
-                              ? 'bg-zinc-900/80 border-zinc-800' 
-                              : 'bg-white/[0.04] border-white/10'
-                        }`}>
-                          <div className="flex items-center justify-between mb-3">
-                            <span className="text-[11px] font-black text-blue-500 uppercase tracking-wider">معدل الإنجاز</span>
-                            <div className="p-2 rounded-xl bg-blue-500/10 text-blue-500">
-                              <TrendingUp size={18} />
-                            </div>
-                          </div>
-                          <div className="flex items-baseline gap-2">
-                            <span className={`text-3xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                              {dashboardScope === 'week' ? `${weekStats.rate}%` : `${todayStats.rate}%`}
-                            </span>
-                            <span className="text-xs font-bold text-slate-400">من المستهدف</span>
-                          </div>
-                          {/* Progress bar */}
-                          <div className="w-full bg-slate-200/60 dark:bg-white/10 h-2 rounded-full mt-4 overflow-hidden">
-                            <div 
-                              className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-700"
-                              style={{ width: `${dashboardScope === 'week' ? weekStats.rate : todayStats.rate}%` }}
-                            />
-                          </div>
-                          <p className={`text-[10px] mt-2 font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                            {dashboardScope === 'week' ? 'نسبة تنفيذ المنهاج الأسبوعي بدون تأخير' : 'نسبة حصص هذا اليوم المنفذة'}
+                          <p className={`text-xs mt-1 font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                            {dashboardScope === 'week' 
+                              ? `الأسبوع الجاري: من ${weekStats.sundayFormatted} إلى ${weekStats.thursdayFormatted} (16 حصة مبرمجة)`
+                              : `اليوم المختار: ${getDayName(new Date(targetDate))} ${formatDate(new Date(targetDate))} (${rows.length} حصص)`}
                           </p>
                         </div>
-
-                        {/* KPI 2: الدروس المنجزة */}
-                        <div className={`p-6 rounded-3xl border transition-all ${
-                          isLight 
-                            ? 'bg-gradient-to-br from-emerald-50/80 to-white border-emerald-200/70 shadow-sm' 
-                            : isBlack 
-                              ? 'bg-zinc-900/80 border-zinc-800' 
-                              : 'bg-white/[0.04] border-white/10'
-                        }`}>
-                          <div className="flex items-center justify-between mb-3">
-                            <span className="text-[11px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">الدروس المنجزة</span>
-                            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
-                              <CheckCircle2 size={18} />
-                            </div>
-                          </div>
-                          <div className="flex items-baseline gap-2">
-                            <span className={`text-3xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                              {dashboardScope === 'week' ? weekStats.totalCompleted : todayStats.completed}
-                            </span>
-                            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                              حصة مثبتة بالدفتر
-                            </span>
-                          </div>
-                          <div className="mt-4 flex items-center gap-1.5 text-xs font-black text-emerald-600 dark:text-emerald-400">
-                            <Check size={14} />
-                            <span>سير بيداغوجي وفق التوزيع</span>
-                          </div>
-                          <p className={`text-[10px] mt-1 font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                            الحصص المنفذة ميدانياً حسب الخطط
-                          </p>
-                        </div>
-
-                        {/* KPI 3: الدروس المؤجلة */}
-                        <div className={`p-6 rounded-3xl border transition-all ${
-                          isLight 
-                            ? 'bg-gradient-to-br from-rose-50/80 to-white border-rose-200/70 shadow-sm' 
-                            : isBlack 
-                              ? 'bg-zinc-900/80 border-zinc-800' 
-                              : 'bg-white/[0.04] border-white/10'
-                        }`}>
-                          <div className="flex items-center justify-between mb-3">
-                            <span className="text-[11px] font-black text-rose-500 uppercase tracking-wider">الدروس المؤجلة</span>
-                            <div className="p-2 rounded-xl bg-rose-500/10 text-rose-500">
-                              <AlertCircle size={18} />
-                            </div>
-                          </div>
-                          <div className="flex items-baseline gap-2">
-                            <span className={`text-3xl font-black ${
-                              (dashboardScope === 'week' ? weekStats.totalPostponed : todayStats.postponed) > 0
-                                ? 'text-rose-600 dark:text-rose-400'
-                                : isLight ? 'text-slate-900' : 'text-white'
-                            }`}>
-                              {dashboardScope === 'week' ? weekStats.totalPostponed : todayStats.postponed}
-                            </span>
-                            <span className="text-xs font-bold text-slate-400">حصة مؤجلة</span>
-                          </div>
-                          <div className="mt-4 flex items-center gap-1.5 text-xs font-black text-rose-500">
-                            {(dashboardScope === 'week' ? weekStats.totalPostponed : todayStats.postponed) > 0 ? (
-                              <span>تم تعويض التوزيع وحذف الإدماج آلياً</span>
-                            ) : (
-                              <span className="text-emerald-500">لا توجد حصص مؤجلة 👍</span>
-                            )}
-                          </div>
-                          <p className={`text-[10px] mt-1 font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                            {(dashboardScope === 'week' ? weekStats.totalPostponed : todayStats.postponed) > 0
-                              ? 'نصف يوم تعليمي أو منافسات أو أسباب أخرى'
-                              : 'جدول منتظم بنسبة 100%'}
-                          </p>
-                        </div>
-
-                        {/* KPI 4: إجمالي الحصص */}
-                        <div className={`p-6 rounded-3xl border transition-all ${
-                          isLight 
-                            ? 'bg-gradient-to-br from-slate-50 to-white border-slate-200/80 shadow-sm' 
-                            : isBlack 
-                              ? 'bg-zinc-900/80 border-zinc-800' 
-                              : 'bg-white/[0.04] border-white/10'
-                        }`}>
-                          <div className="flex items-center justify-between mb-3">
-                            <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider">إجمالي الحصص</span>
-                            <div className="p-2 rounded-xl bg-slate-500/10 text-slate-500">
-                              <Calendar size={18} />
-                            </div>
-                          </div>
-                          <div className="flex items-baseline gap-2">
-                            <span className={`text-3xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                              {dashboardScope === 'week' ? weekStats.totalSlots : todayStats.total}
-                            </span>
-                            <span className="text-xs font-bold text-slate-400">حصة مبرمجة</span>
-                          </div>
-                          <div className="mt-4 flex items-center gap-1.5 text-xs font-black text-slate-500">
-                            <Activity size={14} />
-                            <span>
-                              {dashboardScope === 'week' ? '4 أيام دراسة (16 حصة)' : 'حسب جدول اليوم الحالي'}
-                            </span>
-                          </div>
-                          <p className={`text-[10px] mt-1 font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                            توزيع الحصص المعتمد مع الأفواج
-                          </p>
-                        </div>
-
-                      </div>
-                    </div>
-
-                    {/* Bottom Row: Interactive Day-by-Day Navigator for this Week */}
-                    <div className="pt-4 border-t border-slate-200/50 dark:border-white/5">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className={`text-xs font-black flex items-center gap-2 ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
-                          <Calendar size={14} className="text-blue-500" />
-                          متابعة الإنجاز اليومي لأيام الأسبوع (اضغط للانتقال لأي يوم مباشرة):
-                        </span>
-                        <span className="text-[10px] font-bold text-slate-400">
-                          الأسبوع: {weekStats.sundayFormatted} — {weekStats.thursdayFormatted}
-                        </span>
                       </div>
 
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        {weekStats.schoolDays.map((d, dIdx) => (
+                      <div className="flex flex-wrap items-center gap-3 self-end md:self-auto">
+                        {/* Scope Selector: Week vs Day */}
+                        <div className={`p-1 rounded-xl border flex items-center gap-1 ${
+                          isLight ? 'bg-white border-slate-200' : isBlack ? 'bg-black border-zinc-800' : 'bg-white/5 border-white/10'
+                        }`}>
                           <button
-                            key={dIdx}
-                            onClick={() => setTargetDate(d.dateISO)}
-                            className={`p-4 rounded-2xl border text-right transition-all group flex flex-col justify-between ${
-                              d.isSelected
-                                ? isLight
-                                  ? 'border-blue-600 bg-blue-50/90 shadow-md ring-2 ring-blue-500/20'
-                                  : 'border-blue-500 bg-blue-500/10 shadow-lg ring-2 ring-blue-500/30'
-                                : isLight
-                                  ? 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                                  : isBlack
-                                    ? 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-700'
-                                    : 'border-white/5 bg-white/[0.02] hover:bg-white/[0.06]'
+                            onClick={() => setDashboardScope('week')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                              dashboardScope === 'week'
+                                ? 'bg-blue-600 text-white shadow-sm'
+                                : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
                             }`}
                           >
-                            <div className="flex items-center justify-between w-full mb-2">
-                              <span className={`text-xs font-black ${
-                                d.isSelected ? 'text-blue-600 dark:text-blue-400' : isLight ? 'text-slate-800' : 'text-white'
-                              }`}>
-                                {d.dayName}
-                              </span>
-                              <span className="text-[10px] font-mono font-bold text-slate-400">
-                                {d.dateFormatted.split('/')[0]}/{d.dateFormatted.split('/')[1]}
-                              </span>
-                            </div>
-
-                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200/40 dark:border-white/5">
-                              <span className="text-[11px] font-bold text-slate-500">
-                                {d.total} حصص
-                              </span>
-                              {d.postponed > 0 ? (
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-rose-500/15 text-rose-500 border border-rose-500/20">
-                                  {d.postponed} مؤجلة
-                                </span>
-                              ) : (
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500/15 text-emerald-500 border border-emerald-500/20 flex items-center gap-1">
-                                  <Check size={10} /> مكتمل
-                                </span>
-                              )}
-                            </div>
-
-                            {d.isSelected && (
-                              <div className="mt-2 text-center text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-                                • معروض حالياً في الجدول •
-                              </div>
-                            )}
+                            الأسبوع الحالي
                           </button>
-                        ))}
+                          <button
+                            onClick={() => setDashboardScope('today')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                              dashboardScope === 'today'
+                                ? 'bg-blue-600 text-white shadow-sm'
+                                : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            اليوم المحدد
+                          </button>
+                        </div>
+
+                        {/* Quick Jump to Sheet button */}
+                        <button
+                          onClick={() => setDesktopSubView('sheet')}
+                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-md shadow-blue-600/20 transition-all active:scale-95"
+                        >
+                          <FileText size={15} />
+                          <span>معاينة ورقة الكراس لهذا اليوم</span>
+                        </button>
                       </div>
                     </div>
 
-                  </div>
-                )}
-              </div>
+                    {/* Dashboard Body */}
+                    <div className="p-6 md:p-8 space-y-8 animate-in fade-in duration-300">
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+                        
+                        {/* Left Side: Interactive Pie Chart (4 cols) */}
+                        <div className={`lg:col-span-4 p-6 rounded-3xl border flex flex-col items-center text-center justify-center relative ${
+                          isLight 
+                            ? 'bg-slate-50/80 border-slate-200' 
+                            : isBlack 
+                              ? 'bg-zinc-900/60 border-zinc-800' 
+                              : 'bg-white/[0.03] border-white/5'
+                        }`}>
+                          <div className="w-full flex items-center justify-between mb-2">
+                            <span className={`text-xs font-black flex items-center gap-1.5 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                              <PieChartIcon size={16} className="text-blue-500" />
+                              مخطط توزيع الحصص
+                            </span>
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                              (dashboardScope === 'week' ? weekStats.rate : todayStats.rate) >= 80
+                                ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                                : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
+                            }`}>
+                              {(dashboardScope === 'week' ? weekStats.rate : todayStats.rate) >= 90
+                                ? '🌟 إنجاز ممتاز'
+                                : (dashboardScope === 'week' ? weekStats.rate : todayStats.rate) >= 75
+                                  ? '👍 أداء جيد جداً'
+                                  : '⚠️ يحتاج متابعة'}
+                            </span>
+                          </div>
 
+                          {/* Donut Chart */}
+                          <div className="my-2">
+                            <DonutPieChart
+                              completed={dashboardScope === 'week' ? weekStats.totalCompleted : todayStats.completed}
+                              postponed={dashboardScope === 'week' ? weekStats.totalPostponed : todayStats.postponed}
+                              size={165}
+                              isLight={isLight}
+                              isBlack={isBlack}
+                            />
+                          </div>
+
+                          {/* Chart Legend */}
+                          <div className="w-full grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-200/40 dark:border-white/5">
+                            <div className={`p-2 rounded-xl flex flex-col items-center ${isLight ? 'bg-white border border-slate-200/60' : 'bg-white/5'}`}>
+                              <div className="flex items-center gap-1.5 text-[11px] font-black text-emerald-500">
+                                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                                <span>منجزة</span>
+                              </div>
+                              <span className={`text-sm font-black mt-0.5 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                                {dashboardScope === 'week' ? weekStats.totalCompleted : todayStats.completed}
+                              </span>
+                              <span className="text-[10px] font-bold text-slate-400">
+                                {dashboardScope === 'week' 
+                                  ? `${weekStats.totalSlots > 0 ? ((weekStats.totalCompleted / weekStats.totalSlots) * 100).toFixed(0) : 0}%` 
+                                  : `${todayStats.total > 0 ? ((todayStats.completed / todayStats.total) * 100).toFixed(0) : 0}%`}
+                              </span>
+                            </div>
+
+                            <div className={`p-2 rounded-xl flex flex-col items-center ${isLight ? 'bg-white border border-slate-200/60' : 'bg-white/5'}`}>
+                              <div className="flex items-center gap-1.5 text-[11px] font-black text-rose-500">
+                                <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+                                <span>مؤجلة</span>
+                              </div>
+                              <span className={`text-sm font-black mt-0.5 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                                {dashboardScope === 'week' ? weekStats.totalPostponed : todayStats.postponed}
+                              </span>
+                              <span className="text-[10px] font-bold text-slate-400">
+                                {dashboardScope === 'week' 
+                                  ? `${weekStats.totalSlots > 0 ? ((weekStats.totalPostponed / weekStats.totalSlots) * 100).toFixed(0) : 0}%` 
+                                  : `${todayStats.total > 0 ? ((todayStats.postponed / todayStats.total) * 100).toFixed(0) : 0}%`}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right Side: 4 KPI Cards (8 cols) */}
+                        <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          
+                          {/* KPI 1: معدل الإنجاز */}
+                          <div className={`p-6 rounded-3xl border transition-all ${
+                            isLight 
+                              ? 'bg-gradient-to-br from-blue-50/80 to-white border-blue-200/70 shadow-sm' 
+                              : isBlack 
+                                ? 'bg-zinc-900/80 border-zinc-800' 
+                                : 'bg-white/[0.04] border-white/10'
+                          }`}>
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-[11px] font-black text-blue-500 uppercase tracking-wider">معدل الإنجاز</span>
+                              <div className="p-2 rounded-xl bg-blue-500/10 text-blue-500">
+                                <TrendingUp size={18} />
+                              </div>
+                            </div>
+                            <div className="flex items-baseline gap-2">
+                              <span className={`text-3xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                                {dashboardScope === 'week' ? `${weekStats.rate}%` : `${todayStats.rate}%`}
+                              </span>
+                              <span className="text-xs font-bold text-slate-400">من المستهدف</span>
+                            </div>
+                            <div className="w-full bg-slate-200/60 dark:bg-white/10 h-2 rounded-full mt-4 overflow-hidden">
+                              <div 
+                                className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-700"
+                                style={{ width: `${dashboardScope === 'week' ? weekStats.rate : todayStats.rate}%` }}
+                              />
+                            </div>
+                            <p className={`text-[10px] mt-2 font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                              {dashboardScope === 'week' ? 'نسبة تنفيذ المنهاج الأسبوعي بدون تأخير' : 'نسبة حصص هذا اليوم المنفذة'}
+                            </p>
+                          </div>
+
+                          {/* KPI 2: الدروس المنجزة */}
+                          <div className={`p-6 rounded-3xl border transition-all ${
+                            isLight 
+                              ? 'bg-gradient-to-br from-emerald-50/80 to-white border-emerald-200/70 shadow-sm' 
+                              : isBlack 
+                                ? 'bg-zinc-900/80 border-zinc-800' 
+                                : 'bg-white/[0.04] border-white/10'
+                          }`}>
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-[11px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">الدروس المنجزة</span>
+                              <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
+                                <CheckCircle2 size={18} />
+                              </div>
+                            </div>
+                            <div className="flex items-baseline gap-2">
+                              <span className={`text-3xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                                {dashboardScope === 'week' ? weekStats.totalCompleted : todayStats.completed}
+                              </span>
+                              <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                                حصة مثبتة بالدفتر
+                              </span>
+                            </div>
+                            <div className="mt-4 flex items-center gap-1.5 text-xs font-black text-emerald-600 dark:text-emerald-400">
+                              <Check size={14} />
+                              <span>سير بيداغوجي وفق التوزيع</span>
+                            </div>
+                            <p className={`text-[10px] mt-1 font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                              الحصص المنفذة ميدانياً حسب الخطط
+                            </p>
+                          </div>
+
+                          {/* KPI 3: الدروس المؤجلة */}
+                          <div className={`p-6 rounded-3xl border transition-all ${
+                            isLight 
+                              ? 'bg-gradient-to-br from-rose-50/80 to-white border-rose-200/70 shadow-sm' 
+                              : isBlack 
+                                ? 'bg-zinc-900/80 border-zinc-800' 
+                                : 'bg-white/[0.04] border-white/10'
+                          }`}>
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-[11px] font-black text-rose-500 uppercase tracking-wider">الدروس المؤجلة</span>
+                              <div className="p-2 rounded-xl bg-rose-500/10 text-rose-500">
+                                <AlertCircle size={18} />
+                              </div>
+                            </div>
+                            <div className="flex items-baseline gap-2">
+                              <span className={`text-3xl font-black ${
+                                (dashboardScope === 'week' ? weekStats.totalPostponed : todayStats.postponed) > 0
+                                  ? 'text-rose-600 dark:text-rose-400'
+                                  : isLight ? 'text-slate-900' : 'text-white'
+                              }`}>
+                                {dashboardScope === 'week' ? weekStats.totalPostponed : todayStats.postponed}
+                              </span>
+                              <span className="text-xs font-bold text-slate-400">حصة مؤجلة</span>
+                            </div>
+                            <div className="mt-4 flex items-center gap-1.5 text-xs font-black text-rose-500">
+                              {(dashboardScope === 'week' ? weekStats.totalPostponed : todayStats.postponed) > 0 ? (
+                                <span>تم تعويض التوزيع وحذف الإدماج آلياً</span>
+                              ) : (
+                                <span className="text-emerald-500">لا توجد حصص مؤجلة 👍</span>
+                              )}
+                            </div>
+                            <p className={`text-[10px] mt-1 font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                              {(dashboardScope === 'week' ? weekStats.totalPostponed : todayStats.postponed) > 0
+                                ? 'نصف يوم تعليمي أو منافسات أو أسباب أخرى'
+                                : 'جدول منتظم بنسبة 100%'}
+                            </p>
+                          </div>
+
+                          {/* KPI 4: إجمالي الحصص */}
+                          <div className={`p-6 rounded-3xl border transition-all ${
+                            isLight 
+                              ? 'bg-gradient-to-br from-slate-50 to-white border-slate-200/80 shadow-sm' 
+                              : isBlack 
+                                ? 'bg-zinc-900/80 border-zinc-800' 
+                                : 'bg-white/[0.04] border-white/10'
+                          }`}>
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider">إجمالي الحصص</span>
+                              <div className="p-2 rounded-xl bg-slate-500/10 text-slate-500">
+                                <Calendar size={18} />
+                              </div>
+                            </div>
+                            <div className="flex items-baseline gap-2">
+                              <span className={`text-3xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                                {dashboardScope === 'week' ? weekStats.totalSlots : todayStats.total}
+                              </span>
+                              <span className="text-xs font-bold text-slate-400">حصة مبرمجة</span>
+                            </div>
+                            <div className="mt-4 flex items-center gap-1.5 text-xs font-black text-slate-500">
+                              <Activity size={14} />
+                              <span>
+                                {dashboardScope === 'week' ? '4 أيام دراسة (16 حصة)' : 'حسب جدول اليوم الحالي'}
+                              </span>
+                            </div>
+                            <p className={`text-[10px] mt-1 font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                              توزيع الحصص المعتمد مع الأفواج
+                            </p>
+                          </div>
+
+                        </div>
+                      </div>
+
+                      {/* Day-by-Day Navigator for this Week */}
+                      <div className="pt-4 border-t border-slate-200/50 dark:border-white/5">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className={`text-xs font-black flex items-center gap-2 ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                            <Calendar size={14} className="text-blue-500" />
+                            متابعة الإنجاز اليومي لأيام الأسبوع (اضغط للانتقال لأي يوم مباشرة):
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-400">
+                            الأسبوع: {weekStats.sundayFormatted} — {weekStats.thursdayFormatted}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          {weekStats.schoolDays.map((d, dIdx) => (
+                            <button
+                              key={dIdx}
+                              onClick={() => setTargetDate(d.dateISO)}
+                              className={`p-4 rounded-2xl border text-right transition-all group flex flex-col justify-between ${
+                                d.isSelected
+                                  ? isLight
+                                    ? 'border-blue-600 bg-blue-50/90 shadow-md ring-2 ring-blue-500/20'
+                                    : 'border-blue-500 bg-blue-500/10 shadow-lg ring-2 ring-blue-500/30'
+                                  : isLight
+                                    ? 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                                    : isBlack
+                                      ? 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-700'
+                                      : 'border-white/5 bg-white/[0.02] hover:bg-white/[0.06]'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between w-full mb-2">
+                                <span className={`text-xs font-black ${
+                                  d.isSelected ? 'text-blue-600 dark:text-blue-400' : isLight ? 'text-slate-800' : 'text-white'
+                                }`}>
+                                  {d.dayName}
+                                </span>
+                                <span className="text-[10px] font-mono font-bold text-slate-400">
+                                  {d.dateFormatted.split('/')[0]}/{d.dateFormatted.split('/')[1]}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200/40 dark:border-white/5">
+                                <span className="text-[11px] font-bold text-slate-500">
+                                  {d.total} حصص
+                                </span>
+                                {d.postponed > 0 ? (
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-rose-500/15 text-rose-500 border border-rose-500/20">
+                                    {d.postponed} مؤجلة
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500/15 text-emerald-500 border border-emerald-500/20 flex items-center gap-1">
+                                    <Check size={10} /> مكتمل
+                                  </span>
+                                )}
+                              </div>
+
+                              {d.isSelected && (
+                                <div className="mt-2 text-center text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+                                  • معروض حالياً في الجدول •
+                                </div>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Record View (جدول اليوم: Daily Lessons) */
+            <div className="space-y-8">
               {/* Daily Lessons List Section */}
               <div className="flex items-center justify-between pt-2">
                 <h3 className={`text-xl font-black flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
@@ -2029,6 +2501,108 @@ export default function App() {
           <span className="text-[10px] font-black">الإعدادات</span>
         </button>
       </nav>
+
+      {/* --- Print Assistant & Options Modal --- */}
+      {showPrintModal && (
+        <div className="fixed inset-0 z-[250] bg-black/75 backdrop-blur-md flex items-center justify-center p-4 md:p-6 text-right animate-in fade-in duration-300 no-print">
+          <div className={`border rounded-[2.5rem] w-full max-w-xl overflow-hidden shadow-2xl ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : isBlack ? 'bg-[#0e0e11] border-zinc-800 text-white' : 'bg-slate-900 border-white/10 text-white'
+          }`}>
+            {/* Header */}
+            <div className={`p-6 md:p-8 border-b flex justify-between items-center ${
+              isLight ? 'border-slate-200 bg-slate-50' : isBlack ? 'border-zinc-800 bg-zinc-900/60' : 'border-white/10 bg-white/5'
+            }`}>
+              <button 
+                onClick={() => setShowPrintModal(false)} 
+                className={`p-2.5 rounded-xl transition-colors ${isLight ? 'hover:bg-slate-200 text-slate-500' : 'hover:bg-white/10 text-slate-400'}`}
+              >
+                <X size={22} />
+              </button>
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                  <Printer size={22} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black">طباعة ورقة الكراس اليومي (A4)</h3>
+                  <p className="text-[11px] text-slate-400 font-bold">جاهز للإرسال إلى الطابعة أو التصدير كملف PDF</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 md:p-8 space-y-6">
+              {/* Info summary */}
+              <div className={`p-4 rounded-2xl border flex items-center justify-between text-xs font-bold ${
+                isLight ? 'bg-blue-50/70 border-blue-200 text-blue-900' : 'bg-white/5 border-white/10 text-slate-300'
+              }`}>
+                <div>
+                  <span className="text-slate-500 block text-[10px]">تاريخ الورقة المطبوعة:</span>
+                  <span className="font-black text-sm">{getDayName(new Date(targetDate))} — {formatDate(new Date(targetDate))}</span>
+                </div>
+                <div className="text-left" dir="ltr">
+                  <span className="text-slate-500 block text-[10px]">المؤسسة:</span>
+                  <span className="font-black text-sm">{teacherInfo.school}</span>
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    try {
+                      window.print();
+                    } catch (e) {
+                      console.warn(e);
+                    }
+                  }}
+                  className="w-full py-4 px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-sm flex items-center justify-center gap-3 shadow-xl shadow-blue-600/30 transition-all active:scale-95"
+                >
+                  <Printer size={20} />
+                  <span>إطلاق أمر الطباعة الآن (Window Print)</span>
+                </button>
+
+                <button
+                  onClick={handleDownloadPrintFile}
+                  className={`w-full py-4 px-6 rounded-2xl font-black text-sm border flex items-center justify-center gap-3 transition-all ${
+                    isLight 
+                      ? 'bg-slate-50 hover:bg-slate-100 border-slate-300 text-slate-800' 
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-white'
+                  }`}
+                >
+                  <Download size={20} />
+                  <span>تحميل ملف ورقة الكراس (HTML / A4) للطباعة بأي وقت</span>
+                </button>
+              </div>
+
+              {/* Print Guidelines Advice Box */}
+              <div className={`p-4 rounded-2xl border text-xs leading-relaxed space-y-2 ${
+                isLight ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-amber-500/10 border-amber-500/20 text-amber-300'
+              }`}>
+                <div className="font-black flex items-center gap-2">
+                  <Info size={15} />
+                  <span>إرشادات الطباعة الورقية المثالية:</span>
+                </div>
+                <ul className="list-disc list-inside space-y-1 text-[11px] font-bold opacity-90">
+                  <li>في نافذة الطباعة، اختر مقاس الورقة: <strong>A4</strong> والاتجاه: <strong>عمودي (Portrait)</strong>.</li>
+                  <li>تأكد من تفعيل خيار <strong>رسومات الخلفية (Background graphics)</strong> لإظهار التنسيقات.</li>
+                  <li>قم بإلغاء تفعيل خيار <strong>الرؤوس والتذييلات (Headers and footers)</strong> لتبدو الورقة رسمية ونظيفة.</li>
+                </ul>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  onClick={() => setShowPrintModal(false)}
+                  className={`px-6 py-2.5 rounded-xl text-xs font-black transition-colors ${
+                    isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-white/5 hover:bg-white/10 text-white'
+                  }`}
+                >
+                  إغلاق النافذة
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --- Modals: Postpone and Full Record Sheet --- */}
       {postponeModalRow && (

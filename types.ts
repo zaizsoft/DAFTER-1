@@ -41,6 +41,16 @@ export interface TeacherInfo {
 
 export type PostponeReason = 'half_day' | 'arbitration' | 'competition' | 'other';
 
+export type TermKey = '1' | '2' | '3';
+
+export interface TermConfig {
+  id: TermKey;
+  name: string;
+  fieldName: string;
+  shortFieldName: string;
+  description: string;
+}
+
 export interface PostponedSession {
   key: string; // date_grade_section_time
   date: string;
