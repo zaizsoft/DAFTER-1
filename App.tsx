@@ -49,7 +49,7 @@ import {
   Activity
 } from 'lucide-react';
 import { DailyRecordRow, TeacherInfo, WeeklySlot, PostponeReason, PostponedSession, TermKey } from './types';
-import { WEEKLY_SCHEDULE, FIELD_NAME, ALL_LESSONS, TERMS, DEFAULT_TERM } from './constants';
+import { WEEKLY_SCHEDULE, FIELD_NAME, ALL_LESSONS, TERMS, DEFAULT_TERM, getTerminalCompetency } from './constants';
 import { formatDate, getDayName, getLessonForSlot, getTimeSortValue } from './utils';
 
 // --- Custom App Icon Component (Signature Style) ---
@@ -663,6 +663,7 @@ export default function App() {
         gradeSection: `${slot.grade} (${slot.section})`,
         field: currentFieldName,
         topic: lesson.topic,
+        terminalCompetency: getTerminalCompetency(slot.grade, selectedTerm),
         learnings: lesson.knowledgeResource,
         content: lesson.content,
         teachingSituation: lesson.teachingSituation,
@@ -862,13 +863,16 @@ export default function App() {
     if (!sheetContent) {
       const rowsHtml = rows.map(r => `
         <tr style="border-bottom: 1px solid #000; min-height: 34px; ${r.isIncomplete ? 'background-color: #fee2e2;' : ''}">
-          <td style="border: 1px solid #000; padding: 4px 6px; font-weight: bold;">${r.day}</td>
-          <td style="border: 1px solid #000; padding: 4px 6px; font-weight: bold; direction: ltr;">${r.time}</td>
-          <td style="border: 1px solid #000; padding: 4px 6px; font-weight: bold;">السنة ${r.gradeSection}</td>
-          <td style="border: 1px solid #000; padding: 4px 6px; font-weight: bold;">${r.field}</td>
-          <td style="border: 1px solid #000; padding: 4px 6px; font-weight: bold; text-align: right;">${r.learnings}</td>
-          <td style="border: 1px solid #000; padding: 4px 6px; font-weight: bold; text-align: right;">${r.content}</td>
-          <td style="border: 1px solid #000; padding: 4px 6px; font-weight: bold; color: ${r.isIncomplete ? '#b91c1c' : '#000'}; font-size: 11px;">
+          <td style="border: 1px solid #000; padding: 4px 6px; font-weight: bold; text-align: center; font-size: 11px;">${r.date}</td>
+          <td style="border: 1px solid #000; padding: 4px 6px; font-weight: bold; text-align: center; font-size: 11px;">السنة ${r.gradeSection}</td>
+          <td style="border: 1px solid #000; padding: 4px 6px; font-weight: bold; text-align: center; direction: ltr; font-size: 11px;">${r.time}</td>
+          <td style="border: 1px solid #000; padding: 4px 8px; font-weight: bold; text-align: right; font-size: 11px; line-height: 1.3;">${r.terminalCompetency || ''}</td>
+          <td style="border: 1px solid #000; padding: 4px 8px; text-align: right; font-size: 11px; line-height: 1.3;">
+            ${r.topic ? `<strong style="display:block; margin-bottom:2px; font-weight:900; color:#000;">${r.topic}</strong>` : ''}
+            <span style="font-weight:600; color:#222;">${r.learnings}</span>
+          </td>
+          <td style="border: 1px solid #000; padding: 4px 8px; font-weight: bold; text-align: right; font-size: 11px; line-height: 1.3;">${r.content}</td>
+          <td style="border: 1px solid #000; padding: 4px 6px; font-weight: bold; text-align: center; color: ${r.isIncomplete ? '#b91c1c' : '#000'}; font-size: 11px;">
             ${r.isIncomplete ? `مؤجلة (${postponedSessions.find(p => p.date === r.date && p.gradeSection === r.gradeSection)?.reason || 'نصف يوم تعليمي'})` : ''}
           </td>
         </tr>
@@ -897,13 +901,13 @@ export default function App() {
         <table style="width: 100%; border-collapse: collapse; border: 2px solid #000; text-align: center; font-size: 12px; margin-top: 12px;">
           <thead>
             <tr style="border-bottom: 2px solid #000; background: #f8fafc; font-weight: 900;">
-              <th style="border: 1px solid #000; padding: 6px; width: 9%;">اليوم</th>
+              <th style="border: 1px solid #000; padding: 6px; width: 10%;">التاريخ</th>
+              <th style="border: 1px solid #000; padding: 6px; width: 9%;">الفوج</th>
               <th style="border: 1px solid #000; padding: 6px; width: 11%;">الساعة</th>
-              <th style="border: 1px solid #000; padding: 6px; width: 10%;">القسم</th>
-              <th style="border: 1px solid #000; padding: 6px; width: 12%;">الميدان</th>
-              <th style="border: 1px solid #000; padding: 6px; width: 28%;">التعلمات</th>
-              <th style="border: 1px solid #000; padding: 6px; width: 20%;">محتوى التعلم</th>
-              <th style="border: 1px solid #000; padding: 6px; width: 10%;">ملاحظات</th>
+              <th style="border: 1px solid #000; padding: 6px; width: 22%;">الكفاءة الختامية</th>
+              <th style="border: 1px solid #000; padding: 6px; width: 22%;">التعلمات ـ الأهداف</th>
+              <th style="border: 1px solid #000; padding: 6px; width: 17%;">محتوى الانجاز</th>
+              <th style="border: 1px solid #000; padding: 6px; width: 9%;">الملاحظة</th>
             </tr>
           </thead>
           <tbody>
@@ -912,9 +916,9 @@ export default function App() {
           </tbody>
         </table>
         <div style="display: flex; justify-content: space-between; margin-top: 30px; font-weight: 900; font-size: 14px;">
-          <div>الأستاذ: ${showSignatureNames ? (teacherInfo.name || 'الزايز محمد الطاهر') : '..................................'}</div>
-          <div>المفتش: ${showSignatureNames ? (teacherInfo.inspector || 'السيد المفتش') : '..................................'}</div>
-          <div>المدير: ${showSignatureNames ? (teacherInfo.manager || 'السيد المدير') : '..................................'}</div>
+          <div>الأستاذ: ${showSignatureNames ? (teacherInfo.name || 'الزايز محمد الطاهر') : '.............................'}</div>
+          <div>المفتش: ${showSignatureNames ? (teacherInfo.inspector || 'السيد المفتش') : '.............................'}</div>
+          <div>المدير: ${showSignatureNames ? (teacherInfo.manager || 'السيد المدير') : '.............................'}</div>
         </div>
       `;
     }
@@ -1544,13 +1548,13 @@ export default function App() {
                       }`}
                     >
                       <option value="1" className={isLight ? 'text-slate-900 bg-white' : 'text-white bg-slate-900'}>
-                        الفصل الأول — ميدان الوضعيات والتنقلات
+                        الفصل الأول
                       </option>
                       <option value="2" className={isLight ? 'text-slate-900 bg-white' : 'text-white bg-slate-900'}>
-                        الفصل الثاني — ميدان الحركات القاعدية
+                        الفصل الثاني
                       </option>
                       <option value="3" className={isLight ? 'text-slate-900 bg-white' : 'text-white bg-slate-900'}>
-                        الفصل الثالث — ميدان الهيكلة والبناء
+                        الفصل الثالث
                       </option>
                     </select>
                     <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-blue-500">
@@ -1915,26 +1919,29 @@ export default function App() {
                             <table className="w-full border-collapse border-2 border-black text-center text-[12px] md:text-[13px] leading-tight text-black">
                               <thead>
                                 <tr className="border-b-2 border-black bg-slate-50 font-black">
-                                  <th className="border border-black py-2.5 px-1.5 w-[9%] text-black font-black">اليوم</th>
+                                  <th className="border border-black py-2.5 px-1.5 w-[10%] text-black font-black">التاريخ</th>
+                                  <th className="border border-black py-2.5 px-1.5 w-[9%] text-black font-black">الفوج</th>
                                   <th className="border border-black py-2.5 px-1.5 w-[11%] text-black font-black">الساعة</th>
-                                  <th className="border border-black py-2.5 px-1.5 w-[10%] text-black font-black">القسم</th>
-                                  <th className="border border-black py-2.5 px-1.5 w-[12%] text-black font-black">الميدان</th>
-                                  <th className="border border-black py-2.5 px-2 w-[28%] text-black font-black">التعلمات</th>
-                                  <th className="border border-black py-2.5 px-2 w-[20%] text-black font-black">محتوى التعلم</th>
-                                  <th className="border border-black py-2.5 px-1.5 w-[10%] text-black font-black">ملاحظات</th>
+                                  <th className="border border-black py-2.5 px-2 w-[22%] text-black font-black">الكفاءة الختامية</th>
+                                  <th className="border border-black py-2.5 px-2 w-[22%] text-black font-black">التعلمات ـ الأهداف</th>
+                                  <th className="border border-black py-2.5 px-2 w-[17%] text-black font-black">محتوى الانجاز</th>
+                                  <th className="border border-black py-2.5 px-1.5 w-[9%] text-black font-black">الملاحظة</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {/* Rows with actual sessions for today */}
                                 {rows.map((row, idx) => (
                                   <tr key={`session-${idx}`} className={`border-b border-black min-h-[34px] ${row.isIncomplete ? 'bg-red-50/70' : ''}`}>
-                                    <td className="border border-black py-2 px-1 font-bold">{row.day}</td>
+                                    <td className="border border-black py-2 px-1 font-bold text-center text-[11px] md:text-xs">{row.date}</td>
+                                    <td className="border border-black py-2 px-1 font-bold text-center text-[11px] md:text-xs">السنة {row.gradeSection}</td>
                                     <td className="border border-black py-2 px-1 font-mono font-bold text-[11px] md:text-xs" dir="ltr">{row.time}</td>
-                                    <td className="border border-black py-2 px-1 font-bold">السنة {row.gradeSection}</td>
-                                    <td className="border border-black py-2 px-1 font-bold">{row.field}</td>
-                                    <td className="border border-black py-2 px-2 font-bold text-right leading-snug">{row.learnings}</td>
-                                    <td className="border border-black py-2 px-2 font-bold text-right leading-snug">{row.content}</td>
-                                    <td className="border border-black py-2 px-1 text-[11px] font-bold">
+                                    <td className="border border-black py-2 px-2 font-bold text-right leading-snug text-[10.5px] md:text-[11.5px]">{row.terminalCompetency}</td>
+                                    <td className="border border-black py-2 px-2 text-right leading-snug text-[10.5px] md:text-[11.5px]">
+                                      {row.topic && <div className="font-black text-black mb-0.5">{row.topic}</div>}
+                                      <div className="font-semibold text-neutral-800">{row.learnings}</div>
+                                    </td>
+                                    <td className="border border-black py-2 px-2 font-bold text-right leading-snug text-[10.5px] md:text-[11.5px]">{row.content}</td>
+                                    <td className="border border-black py-2 px-1 text-[11px] font-bold text-center">
                                       {row.isIncomplete ? (
                                         <span className="text-red-700 font-black">
                                           مؤجلة ({postponedSessions.find(p => p.date === row.date && p.gradeSection === row.gradeSection)?.reason || 'نصف يوم تعليمي'})
@@ -1946,13 +1953,13 @@ export default function App() {
                                   </tr>
                                 ))}
 
-                                {/* Empty filler rows to complete the classic paper sheet layout identical to PDF */}
+                                {/* Empty filler rows to complete the classic paper sheet layout identical to PDF / user template */}
                                 {Array.from({ length: Math.max(0, 24 - rows.length) }).map((_, fIdx) => (
                                   <tr key={`empty-${fIdx}`} className="border-b border-black h-[34px]">
                                     <td className="border border-black py-2 px-1">&nbsp;</td>
                                     <td className="border border-black py-2 px-1">&nbsp;</td>
                                     <td className="border border-black py-2 px-1">&nbsp;</td>
-                                    <td className="border border-black py-2 px-1">&nbsp;</td>
+                                    <td className="border border-black py-2 px-2">&nbsp;</td>
                                     <td className="border border-black py-2 px-2">&nbsp;</td>
                                     <td className="border border-black py-2 px-2">&nbsp;</td>
                                     <td className="border border-black py-2 px-1">&nbsp;</td>
@@ -1966,13 +1973,13 @@ export default function App() {
                         {/* Sheet Footer Signatures */}
                         <div className="pt-8 pb-4 flex justify-between items-center text-sm md:text-base font-black text-black">
                           <div className="text-right">
-                            الأستاذ: {showSignatureNames ? (teacherInfo.name || "الزايز محمد الطاهر") : ".................................."}
+                            الأستاذ: {showSignatureNames ? (teacherInfo.name || "الزايز محمد الطاهر") : "............................."}
                           </div>
                           <div className="text-center">
-                            المفتش: {showSignatureNames ? (teacherInfo.inspector || "السيد المفتش") : ".................................."}
+                            المفتش: {showSignatureNames ? (teacherInfo.inspector || "السيد المفتش") : "............................."}
                           </div>
                           <div className="text-left">
-                            المدير: {showSignatureNames ? (teacherInfo.manager || "السيد المدير") : ".................................."}
+                            المدير: {showSignatureNames ? (teacherInfo.manager || "السيد المدير") : "............................."}
                           </div>
                         </div>
                       </div>
@@ -2388,6 +2395,15 @@ export default function App() {
                         <Tag size={16} className="text-amber-500" />
                         <span className="text-sm font-black text-amber-500/90 uppercase tracking-wide">نوع الحصة: {row.topic}</span>
                       </div>
+                      <div className={`mb-3 p-3 rounded-xl border flex items-start gap-2.5 text-xs font-bold ${
+                        isLight ? 'bg-amber-50/80 border-amber-200 text-amber-950' : 'bg-amber-500/10 border-amber-500/20 text-amber-300'
+                      }`}>
+                        <Award size={16} className="text-amber-500 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-black ml-1">الكفاءة الختامية للسنة {row.gradeSection}:</span>
+                          <span>{row.terminalCompetency}</span>
+                        </div>
+                      </div>
                       <h4 className={`text-2xl font-black mb-4 leading-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
                         {row.learnings}
                       </h4>
@@ -2706,6 +2722,13 @@ export default function App() {
                           <span className="text-xl font-black text-blue-900 uppercase">نوع الحصة / الموضوع المبرمج:</span>
                         </div>
                         <span className="text-2xl font-black text-blue-700 underline underline-offset-8 decoration-4 decoration-blue-200">{selectedRow.topic}</span>
+                     </div>
+                     <div className="bg-amber-50/80 p-6 rounded-3xl border-2 border-amber-200 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm relative">
+                        <div className="flex items-center gap-3">
+                          <Award size={26} className="text-amber-700 shrink-0" />
+                          <span className="text-lg font-black text-amber-950 uppercase">الكفاءة الختامية للمستوى (السنة {selectedRow.gradeSection}):</span>
+                        </div>
+                        <span className="text-lg font-bold text-amber-900 leading-relaxed">{selectedRow.terminalCompetency}</span>
                      </div>
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                         <div className="space-y-4">
