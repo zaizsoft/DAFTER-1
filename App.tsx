@@ -1934,7 +1934,7 @@ export default function App() {
                                   <tr key={`session-${idx}`} className={`border-b border-black min-h-[34px] ${row.isIncomplete ? 'bg-red-50/70' : ''}`}>
                                     <td className="border border-black py-2 px-1 font-bold text-center text-[11px] md:text-xs">{row.date}</td>
                                     <td className="border border-black py-2 px-1 font-bold text-center text-[11px] md:text-xs">السنة {row.gradeSection}</td>
-                                    <td className="border border-black py-2 px-1 font-mono font-bold text-[11px] md:text-xs" dir="ltr">{row.time}</td>
+                                    <td className="border border-black py-2 px-1 font-mono font-black text-xs md:text-sm text-center" dir="ltr">{row.time}</td>
                                     <td className="border border-black py-2 px-2 font-bold text-right leading-snug text-[10.5px] md:text-[11.5px]">{row.terminalCompetency}</td>
                                     <td className="border border-black py-2 px-2 text-right leading-snug text-[10.5px] md:text-[11.5px]">
                                       {row.topic && <div className="font-black text-black mb-0.5">{row.topic}</div>}
@@ -2369,17 +2369,23 @@ export default function App() {
                   }`}
                 >
                   <div className="p-8 flex flex-col md:flex-row items-center gap-8">
-                    <div className="flex flex-col gap-3">
-                      <div className={`w-28 py-4 rounded-2xl border text-center text-[11px] font-black shadow-xl ${
+                    <div className="flex flex-col gap-3 shrink-0">
+                      <div className={`w-36 sm:w-44 py-3.5 px-3 rounded-2xl border text-center shadow-xl flex flex-col items-center justify-center gap-1 ${
                         isLight 
                           ? 'bg-blue-50 border-blue-200 text-blue-700' 
                           : isBlack 
                             ? 'bg-zinc-900 border-zinc-800 text-sky-400' 
                             : 'bg-slate-900 border-white/10 text-blue-400'
                       }`}>
-                        {row.time}
+                        <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-orange-500">
+                          <Clock size={14} />
+                          <span>توقيت الحصة</span>
+                        </div>
+                        <div className="text-xl md:text-2xl font-black font-mono tracking-tight" dir="ltr">
+                          {row.time}
+                        </div>
                       </div>
-                      <div className={`w-28 py-2 rounded-xl text-center text-[9px] font-black uppercase tracking-tighter border ${
+                      <div className={`w-36 sm:w-44 py-2 rounded-xl text-center text-[10px] font-black uppercase tracking-tighter border ${
                         row.topic.includes("تقويم") 
                           ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' 
                           : 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'
@@ -2444,38 +2450,115 @@ export default function App() {
                        <button 
                          onClick={() => setExpandedRowIndex(expandedRowIndex === idx ? null : idx)} 
                          className={`p-3 transition-colors ${isLight ? 'text-slate-400 hover:text-slate-800' : 'text-slate-500 hover:text-white'}`}
+                         title="عرض تفاصيل المواقف وشرح الألعاب الحرفي"
                        >
-                         <ChevronDown size={32} className={`transition-transform duration-500 ${expandedRowIndex === idx ? 'rotate-180' : ''}`} />
+                         <ChevronDown size={32} className={`transition-transform duration-500 ${expandedRowIndex === idx ? 'rotate-180 text-orange-500' : ''}`} />
                        </button>
                     </div>
                   </div>
                   {expandedRowIndex === idx && (
-                    <div className={`p-8 space-y-8 animate-in fade-in zoom-in-95 duration-500 border-t ${
+                    <div className={`p-6 sm:p-8 space-y-6 animate-in fade-in zoom-in-95 duration-500 border-t ${
                       isLight ? 'bg-slate-50 border-slate-200' : 'bg-white/[0.04] border-white/10'
                     }`}>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                         <div className={`p-6 rounded-2xl border-r-4 ${
-                           isLight ? 'bg-emerald-100/60 border-emerald-600 text-emerald-950' : 'bg-emerald-950/20 border-emerald-500 text-emerald-50/80'
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200/60 dark:border-white/10">
+                        <div className="flex items-center gap-2.5">
+                          <BookOpen size={22} className="text-emerald-500" />
+                          <h5 className={`text-lg font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                            شرح الألعاب والمواقف التعليمية والوسائل (المذكرة الحرفية)
+                          </h5>
+                        </div>
+                        <span className={`text-xs font-bold px-3 py-1 rounded-full border self-start sm:self-auto ${
+                          isLight ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
+                        }`}>
+                          الأستاذ: {teacherInfo.name || "الزايز محمد الطاهر"} • السنة {row.gradeSection}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                         {/* Situations and Games Details (2 columns on desktop) */}
+                         <div className={`lg:col-span-2 p-6 rounded-3xl border-r-4 space-y-4 shadow-sm ${
+                           isLight ? 'bg-emerald-50/80 border-emerald-600 text-slate-900' : 'bg-emerald-950/20 border-emerald-500 text-emerald-50/90'
                          }`}>
-                           <span className={`text-[11px] font-black block mb-2 uppercase tracking-widest ${isLight ? 'text-emerald-800' : 'text-emerald-400'}`}>
-                             الموقف التعليمي المفصل:
-                           </span>
-                           <p className="text-sm font-bold leading-relaxed">{row.teachingSituation || "يتم اتباع التدرج السنوي للمكتسبات والتركيز على المحتوى المعرفي."}</p>
+                           <div className="flex items-center gap-2 pb-2 border-b border-emerald-200/60 dark:border-emerald-500/20">
+                             <Layers size={20} className={isLight ? 'text-emerald-800' : 'text-emerald-400'} />
+                             <span className={`text-sm font-black uppercase tracking-wider ${isLight ? 'text-emerald-800' : 'text-emerald-400'}`}>
+                               تفاصيل المواقف وسير الألعاب الحرفي:
+                             </span>
+                           </div>
+                           <div className="space-y-3">
+                             {(row.teachingSituation || "")
+                               .split('\n')
+                               .filter(line => line.trim())
+                               .map((line, lineIdx) => {
+                                 const isHeader = line.startsWith('- الموقف') || line.startsWith('- موقف') || line.startsWith('الموقف') || line.startsWith('- المحطة') || line.startsWith('وضعية مشكلة');
+                                 return (
+                                   <div 
+                                     key={lineIdx} 
+                                     className={`p-4 rounded-2xl border leading-relaxed text-sm font-bold transition-colors ${
+                                       isHeader 
+                                         ? isLight 
+                                           ? 'bg-white border-emerald-200 shadow-sm text-slate-900' 
+                                           : 'bg-white/5 border-emerald-500/30 text-white' 
+                                         : isLight 
+                                           ? 'bg-white/70 border-slate-200/70 text-slate-800' 
+                                           : 'bg-black/20 border-white/5 text-slate-300'
+                                     }`}
+                                   >
+                                     <p className="whitespace-pre-wrap">{line}</p>
+                                   </div>
+                                 );
+                               })}
+                           </div>
                          </div>
-                         <div className={`p-6 rounded-2xl border-r-4 ${
-                           isLight ? 'bg-amber-100/60 border-amber-600 text-amber-950' : 'bg-amber-950/20 border-amber-500 text-amber-50/80'
+
+                         {/* Required Equipment / Tools (1 column) */}
+                         <div className={`p-6 rounded-3xl border-r-4 flex flex-col justify-between shadow-sm ${
+                           isLight ? 'bg-amber-50/80 border-amber-600 text-slate-900' : 'bg-amber-950/20 border-amber-500 text-amber-50/90'
                          }`}>
-                           <span className={`text-[11px] font-black block mb-2 uppercase tracking-widest ${isLight ? 'text-amber-800' : 'text-amber-400'}`}>
-                             الوسائل المستخدمة:
-                           </span>
-                           <p className="text-sm font-bold leading-relaxed">{row.tools || "سلم أرضي، شواخص، أقماع، كرات طبية."}</p>
+                           <div className="space-y-4">
+                             <div className="flex items-center gap-2 pb-2 border-b border-amber-200/60 dark:border-amber-500/20">
+                               <Wrench size={20} className={isLight ? 'text-amber-800' : 'text-amber-400'} />
+                               <span className={`text-sm font-black uppercase tracking-wider ${isLight ? 'text-amber-800' : 'text-amber-400'}`}>
+                                 الوسائل والعتاد البيداغوجي اللازم:
+                               </span>
+                             </div>
+                             
+                             <div className="bg-white dark:bg-black/40 p-4 rounded-2xl border border-amber-200/70 dark:border-amber-500/20 shadow-sm">
+                               <p className="text-sm font-black leading-relaxed text-amber-950 dark:text-amber-200">
+                                 {row.tools || "سلم أرضي، شواخص، أقماع، كرات."}
+                               </p>
+                             </div>
+
+                             <div className="space-y-2 pt-1">
+                               <span className="text-[11px] font-black text-slate-400 block">قائمة العتاد المستخرج من المذكرة:</span>
+                               <div className="flex flex-wrap gap-2">
+                                 {(row.tools || "").split(/[،,؛;\.]/).map(t => t.trim()).filter(Boolean).map((toolName, toolIdx) => (
+                                   <span key={toolIdx} className={`px-3 py-1.5 rounded-xl text-xs font-black border flex items-center gap-1 shadow-sm ${
+                                     isLight ? 'bg-amber-100/80 border-amber-300 text-amber-950' : 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                                   }`}>
+                                     <span>✓</span>
+                                     <span>{toolName}</span>
+                                   </span>
+                                 ))}
+                               </div>
+                             </div>
+                           </div>
+
+                           <div className="pt-6">
+                             <div className={`p-3.5 rounded-2xl text-center text-xs font-bold border ${
+                               isLight ? 'bg-white/80 border-slate-200 text-slate-600' : 'bg-black/20 border-white/5 text-slate-400'
+                             }`}>
+                               تأكد من إحضار العتاد المذكور أعلاه وتجهيز الورشة قبل بدء الحصة
+                             </div>
+                           </div>
                          </div>
                       </div>
+
                       <button 
                         onClick={() => { setSelectedRow(row); setViewPdf(false); }} 
-                        className="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-sm uppercase flex items-center justify-center gap-3 transition-all shadow-xl shadow-blue-600/30 group"
+                        className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-sm uppercase flex items-center justify-center gap-3 transition-all shadow-xl shadow-blue-600/30 group active:scale-95"
                       >
-                        فتح المذكرة الكاملة للمعايير <ExternalLink size={20} className="group-hover:translate-x-1 transition-transform" />
+                        فتح بطاقة إعداد الحصة الكاملة للمعايير <ExternalLink size={18} className="group-hover:translate-x-1 transition-transform" />
                       </button>
                     </div>
                   )}
