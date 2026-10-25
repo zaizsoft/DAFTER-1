@@ -1701,7 +1701,7 @@ export default function App() {
                          isLight ? 'border-slate-100 hover:bg-slate-50' : 'border-white/5 hover:bg-white/5'
                        }`}>
                          <td className={`py-6 font-black px-4 ${isLight ? 'text-slate-900' : 'text-white'}`}>{slot.dayName}</td>
-                         <td className="font-mono text-blue-500 px-4 font-bold">{slot.time}</td>
+                         <td className="font-dubai text-amber-500 dark:text-amber-400 px-4 font-black text-sm" dir="ltr" style={{ fontFamily: "'Dubai', sans-serif" }}>{slot.time}</td>
                          <td className={`px-4 font-bold ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>السنة {slot.grade} ابتدائي</td>
                          <td className="px-4 font-black text-slate-500 group-hover:text-blue-500">({slot.section})</td>
                        </tr>
@@ -1935,7 +1935,7 @@ export default function App() {
                                   <tr key={`session-${idx}`} className={`border-b border-black min-h-[34px] ${row.isIncomplete ? 'bg-red-50/70' : ''}`}>
                                     <td className="border border-black py-2 px-1 font-bold text-center text-[11px] md:text-xs">{row.date}</td>
                                     <td className="border border-black py-2 px-1 font-bold text-center text-[11px] md:text-xs">السنة {row.gradeSection}</td>
-                                    <td className="border border-black py-2 px-1 font-mono font-black text-xs md:text-sm text-center" dir="ltr">{row.time}</td>
+                                    <td className="border border-black py-2 px-1 font-dubai font-black text-xs md:text-sm text-center" dir="ltr" style={{ fontFamily: "'Dubai', sans-serif" }}>{row.time}</td>
                                     <td className="border border-black py-2 px-2 font-bold text-right leading-snug text-[10.5px] md:text-[11.5px]">{row.terminalCompetency}</td>
                                     <td className="border border-black py-2 px-2 text-right leading-snug text-[10.5px] md:text-[11.5px]">
                                       {row.topic && <div className="font-black text-black mb-0.5">{row.topic}</div>}
@@ -2371,18 +2371,26 @@ export default function App() {
                 >
                   <div className="p-8 flex flex-col md:flex-row items-center gap-8">
                     <div className="flex flex-col gap-3 shrink-0">
-                      <div className={`w-40 sm:w-48 lg:w-52 py-4 px-3 rounded-3xl border-2 text-center shadow-xl flex flex-col items-center justify-center gap-1.5 transition-all ${
+                      <div className={`w-44 sm:w-52 lg:w-56 py-4 px-3 rounded-3xl border-2 text-center shadow-xl flex flex-col items-center justify-center gap-1.5 transition-all ${
                         isLight 
-                          ? 'bg-gradient-to-br from-amber-50/90 via-orange-50/60 to-amber-100/40 border-orange-300 text-slate-900 shadow-orange-500/10' 
+                          ? 'bg-gradient-to-br from-amber-50/95 via-orange-50/80 to-amber-100/70 border-amber-300 shadow-orange-500/10' 
                           : isBlack 
-                            ? 'bg-gradient-to-br from-zinc-900 to-black border-orange-500/30 text-white shadow-2xl' 
-                            : 'bg-gradient-to-br from-slate-900/90 to-slate-950 border-orange-500/30 text-white shadow-xl'
+                            ? 'bg-gradient-to-br from-amber-950/25 via-zinc-900 to-black border-amber-500/40 shadow-2xl ring-1 ring-amber-500/20' 
+                            : 'bg-gradient-to-br from-amber-950/20 via-slate-900 to-slate-950 border-amber-500/40 shadow-xl ring-1 ring-amber-500/20'
                       }`}>
-                        <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-widest text-orange-500">
-                          <Clock size={16} className="text-orange-500" />
+                        <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-widest text-amber-500">
+                          <Clock size={16} className="text-amber-500" />
                           <span>توقيت الحصة</span>
                         </div>
-                        <div className="text-2xl sm:text-3xl lg:text-4xl font-black font-mono tracking-wider drop-shadow-sm text-slate-900 dark:text-orange-400" dir="ltr">
+                        <div 
+                          className={`text-3xl sm:text-4xl lg:text-[2.6rem] font-black font-dubai tracking-wider transition-colors ${
+                            isLight 
+                              ? 'text-amber-950 drop-shadow-sm' 
+                              : 'text-amber-300 drop-shadow-[0_2px_14px_rgba(251,191,36,0.35)]'
+                          }`} 
+                          dir="ltr"
+                          style={{ fontFamily: "'Dubai', sans-serif" }}
+                        >
                           {row.time}
                         </div>
                       </div>

@@ -12,7 +12,27 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='20' y='15' width='60' height='75' rx='8' fill='%231e293b'/%3E%3Crect x='35' y='10' width='30' height='10' rx='2' fill='%23f97316'/%3E%3Cpath d='M70 65c0 8-6 15-15 15s-15-7-15-15 6-15 15-15 15 7 15 15z' fill='%23fb923c'/%3E%3Crect x='55' y='55' width='25' height='12' rx='2' fill='%23fb923c'/%3E%3C/svg%3E">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.cdnfonts.com/css/dubai" rel="stylesheet">
     <style>
+      @font-face {
+        font-family: 'Dubai';
+        src: local('Dubai'),
+             url('https://cdn.jsdelivr.net/gh/rtaibah/dubai-font-cdn@master/fonts/Dubai-Bold.woff2') format('woff2');
+        font-weight: 700 900;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: 'Dubai';
+        src: local('Dubai'),
+             url('https://cdn.jsdelivr.net/gh/rtaibah/dubai-font-cdn@master/fonts/Dubai-Regular.woff2') format('woff2');
+        font-weight: 400 500;
+        font-style: normal;
+        font-display: swap;
+      }
+      .font-dubai {
+        font-family: 'Dubai', 'Segoe UI', Tahoma, Arial, sans-serif !important;
+      }
       :root {
         --primary: #2563eb;
         --orange: #f97316;
