@@ -45,6 +45,21 @@ export const getLessonForSlot = (
   const end = new Date(targetDate);
   end.setHours(0, 0, 0, 0);
 
+  // إذا كان التاريخ المطلوب يسبق تاريخ بداية الفصل الدراسي، يعتبر عطلة صيفية ولا توجد حصص
+  if (end < current) {
+    return {
+      lesson: {
+        id: "vacation",
+        topic: "عطلة صيفية / عطلة مدرسية",
+        knowledgeResource: "فترة عطلة رسمية تسبق بداية الفصل الدراسي وتاريخ انطلاق الحصص.",
+        content: "لا توجد حصص مبرمجة في هذه الفترة.",
+        teachingSituation: "فترة عطلة صيفية / مدرسية تسبق تاريخ بداية الفصل الدراسي المعتمد في الإعدادات.",
+        tools: "—"
+      },
+      isIncomplete: false
+    };
+  }
+
   const tempDate = new Date(current);
   while (tempDate <= end) {
     const dayIdx = tempDate.getDay();

@@ -47,9 +47,15 @@ import {
   BarChart3,
   Percent,
   Activity,
-  Layers
+  Layers,
+  FileCheck,
+  FileSpreadsheet,
+  Edit3,
+  Save,
+  Plus,
+  Trash2
 } from 'lucide-react';
-import { DailyRecordRow, TeacherInfo, WeeklySlot, PostponeReason, PostponedSession, TermKey } from './types';
+import { DailyRecordRow, TeacherInfo, WeeklySlot, PostponeReason, PostponedSession, TermKey, SessionNote, WeeklyNote } from './types';
 import { WEEKLY_SCHEDULE, FIELD_NAME, ALL_LESSONS, TERMS, DEFAULT_TERM, getTerminalCompetency } from './constants';
 import { formatDate, getDayName, getLessonForSlot, getTimeSortValue } from './utils';
 
@@ -513,12 +519,14 @@ const DonutPieChart = ({
 };
 
 export default function App() {
-  const [activeView, setActiveView] = useState<'record' | 'desktop' | 'settings' | 'distribution' | 'notes'>('record');
+  const [activeView, setActiveView] = useState<'record' | 'desktop' | 'settings' | 'distribution' | 'notes' | 'weeklyReport'>('record');
   const [desktopSubView, setDesktopSubView] = useState<'sheet' | 'dashboard'>('sheet');
   const [sheetZoom, setSheetZoom] = useState<number>(100);
+  const [weeklySheetZoom, setWeeklySheetZoom] = useState<number>(100);
   const [showSignatureNames, setShowSignatureNames] = useState<boolean>(true);
   const [academicYear, setAcademicYear] = useState<string>("2025 / 2026");
   const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
+  const [showWeeklyPrintModal, setShowWeeklyPrintModal] = useState<boolean>(false);
   const [printBlobUrl, setPrintBlobUrl] = useState<string | null>(null);
   const [expandedRowIndex, setExpandedRowIndex] = useState<number | null>(null);
   const [selectedRow, setSelectedRow] = useState<DailyRecordRow | null>(null);
@@ -526,6 +534,27 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   
+  const [sessionNotes, setSessionNotes] = useState<Record<string, string>>(() => {
+    const saved = localStorage.getItem('session_notes');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  const [weeklyNotes, setWeeklyNotes] = useState<Record<string, string>>(() => {
+    const saved = localStorage.getItem('weekly_notes');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  const [noteModalSlot, setNoteModalSlot] = useState<{
+    key: string;
+    date: string;
+    gradeSection: string;
+    time: string;
+    topic: string;
+  } | null>(null);
+  const [tempNoteText, setTempNoteText] = useState<string>('');
+  const [editingWeeklyNoteModal, setEditingWeeklyNoteModal] = useState<boolean>(false);
+  const [tempWeeklyNoteText, setTempWeeklyNoteText] = useState<string>('');
+
   const [dashboardScope, setDashboardScope] = useState<'week' | 'today'>('week');
   const [isDashboardOpen, setIsDashboardOpen] = useState<boolean>(() => {
     const saved = localStorage.getItem('dashboard_open');
@@ -623,6 +652,9 @@ export default function App() {
     localStorage.setItem('postponed_sessions', JSON.stringify(postponedSessions));
     localStorage.setItem('dashboard_open', String(isDashboardOpen));
 
+    localStorage.setItem('session_notes', JSON.stringify(sessionNotes));
+    localStorage.setItem('weekly_notes', JSON.stringify(weeklyNotes));
+
     document.body.style.backgroundColor = currentTheme.bg;
     if (currentTheme.isLight) {
       document.body.classList.add('light-mode');
@@ -634,7 +666,7 @@ export default function App() {
       document.body.classList.remove('light-mode');
       document.body.classList.remove('black-mode');
     }
-  }, [semesterStart, teacherInfo, themeKey, currentTheme, meetingsState, postponedSessions, selectedTerm]);
+  }, [semesterStart, teacherInfo, themeKey, currentTheme, meetingsState, postponedSessions, selectedTerm, sessionNotes, weeklyNotes]);
 
   const addNotification = (type: NotificationType, title: string, message: string) => {
     const id = Math.random().toString(36).substring(2, 9);
@@ -646,19 +678,36 @@ export default function App() {
     setNotifications(prev => prev.filter(n => n.id !== id));
   };
 
+  const isBeforeSemesterStart = useMemo(() => {
+    const d = new Date(targetDate);
+    d.setHours(0, 0, 0, 0);
+    const start = new Date(semesterStart);
+    start.setHours(0, 0, 0, 0);
+    return d < start;
+  }, [targetDate, semesterStart]);
+
   const rows = useMemo(() => {
     const dateObj = new Date(targetDate);
-    const dayIndex = dateObj.getDay();
+    dateObj.setHours(0, 0, 0, 0);
     const startDate = new Date(semesterStart);
+    startDate.setHours(0, 0, 0, 0);
+
+    // إذا كان التاريخ يسبق تاريخ بداية الفصل الدراسي (عطلة صيفية/مدرسية)، لا توجد حصص
+    if (dateObj < startDate) {
+      return [];
+    }
     
+    const dayIndex = dateObj.getDay();
     const slotsToday = WEEKLY_SCHEDULE
       .filter(s => s.dayIndex === dayIndex)
       .sort((a, b) => getTimeSortValue(a.time) - getTimeSortValue(b.time));
 
     return slotsToday.map((slot): DailyRecordRow & { isIncomplete: boolean } => {
       const { lesson, isIncomplete } = getLessonForSlot(slot, startDate, dateObj, meetingsState, selectedTerm);
+      const dateFormatted = formatDate(dateObj);
+      const slotKey = `${dateFormatted}_${slot.grade}_${slot.section}_${slot.time}`;
       return {
-        date: formatDate(dateObj),
+        date: dateFormatted,
         day: getDayName(dateObj),
         time: slot.time,
         gradeSection: `${slot.grade} (${slot.section})`,
@@ -670,11 +719,11 @@ export default function App() {
         teachingSituation: lesson.teachingSituation,
         tools: lesson.tools,
         pdfUrl: lesson.pdfUrl,
-        note: "",
+        note: sessionNotes[slotKey] || "",
         isIncomplete
       };
     });
-  }, [targetDate, semesterStart, meetingsState, selectedTerm, currentFieldName]);
+  }, [targetDate, semesterStart, meetingsState, selectedTerm, currentFieldName, sessionNotes]);
 
   // --- Weekly & Today Statistics for Dashboard & Pie Chart ---
   const weekStats = useMemo(() => {
@@ -687,17 +736,25 @@ export default function App() {
     const thursday = new Date(sunday);
     thursday.setDate(sunday.getDate() + 4);
 
+    const startD = new Date(semesterStart);
+    startD.setHours(0, 0, 0, 0);
+
     // School days with classes: Sunday (0), Monday (1), Wednesday (3), Thursday (4)
     const schoolDays = [0, 1, 3, 4].map(dayIdx => {
       const d = new Date(sunday);
       d.setDate(sunday.getDate() + dayIdx);
+      d.setHours(0, 0, 0, 0);
+      const isBeforeStart = d < startD;
       const dateFormatted = formatDate(d);
       const dayName = getDayName(d);
       const dateISO = d.toISOString().split('T')[0];
 
-      const daySlots = WEEKLY_SCHEDULE
-        .filter(s => s.dayIndex === dayIdx)
-        .sort((a, b) => getTimeSortValue(a.time) - getTimeSortValue(b.time));
+      const daySlots = isBeforeStart 
+        ? [] 
+        : WEEKLY_SCHEDULE
+            .filter(s => s.dayIndex === dayIdx)
+            .sort((a, b) => getTimeSortValue(a.time) - getTimeSortValue(b.time));
+
       const slotsWithStatus = daySlots.map(s => {
         const key = `${dateFormatted}_${s.grade}_${s.section}_${s.time}`;
         const isIncomplete = meetingsState[key] === 'incomplete';
@@ -720,6 +777,7 @@ export default function App() {
         date: d,
         dateFormatted,
         dateISO,
+        isBeforeStart,
         slots: slotsWithStatus,
         total,
         completed,
@@ -744,7 +802,7 @@ export default function App() {
       totalPostponed,
       rate
     };
-  }, [targetDate, meetingsState]);
+  }, [targetDate, semesterStart, meetingsState]);
 
   const todayStats = useMemo(() => {
     const total = rows.length;
@@ -759,6 +817,139 @@ export default function App() {
     };
   }, [rows]);
 
+  // --- Comprehensive Weekly Report Data (إحصائيات الدروس المنجزة والمؤجلة مع قائمة الملاحظات) ---
+  const weeklyReportData = useMemo(() => {
+    const current = new Date(targetDate);
+    const day = current.getDay(); // 0 is Sunday
+    const sunday = new Date(current);
+    sunday.setDate(current.getDate() - day);
+    sunday.setHours(0, 0, 0, 0);
+
+    const thursday = new Date(sunday);
+    thursday.setDate(sunday.getDate() + 4);
+
+    const sundayFormatted = formatDate(sunday);
+    const thursdayFormatted = formatDate(thursday);
+    const weekKey = `${sundayFormatted}_${thursdayFormatted}`;
+
+    const startD = new Date(semesterStart);
+    startD.setHours(0, 0, 0, 0);
+
+    // School days with classes: Sunday (0), Monday (1), Wednesday (3), Thursday (4)
+    const schoolDaysData = [0, 1, 3, 4].map(dayIdx => {
+      const d = new Date(sunday);
+      d.setDate(sunday.getDate() + dayIdx);
+      d.setHours(0, 0, 0, 0);
+      const isBeforeStart = d < startD;
+      const dateFormatted = formatDate(d);
+      const dayName = getDayName(d);
+      const dateISO = d.toISOString().split('T')[0];
+
+      const daySlots = isBeforeStart
+        ? []
+        : WEEKLY_SCHEDULE
+            .filter(s => s.dayIndex === dayIdx)
+            .sort((a, b) => getTimeSortValue(a.time) - getTimeSortValue(b.time));
+
+      const slots = daySlots.map(slot => {
+        const key = `${dateFormatted}_${slot.grade}_${slot.section}_${slot.time}`;
+        const { lesson, isIncomplete } = getLessonForSlot(
+          slot,
+          new Date(semesterStart),
+          d,
+          meetingsState,
+          selectedTerm
+        );
+        const postponeEntry = postponedSessions.find(
+          p => p.key === key || (p.date === dateFormatted && p.gradeSection.includes(slot.grade) && p.gradeSection.includes(slot.section))
+        );
+        const note = sessionNotes[key] || '';
+        return {
+          slot,
+          key,
+          dateFormatted,
+          dateISO,
+          dayName,
+          time: slot.time,
+          grade: slot.grade,
+          section: slot.section,
+          gradeSection: `${slot.grade} (${slot.section})`,
+          topic: lesson.topic,
+          terminalCompetency: getTerminalCompetency(slot.grade, selectedTerm),
+          learnings: lesson.knowledgeResource,
+          content: lesson.content,
+          teachingSituation: lesson.teachingSituation,
+          tools: lesson.tools,
+          isIncomplete,
+          postponeReason: postponeEntry?.reason || (isIncomplete ? 'نصف يوم تعليمي' : ''),
+          postponeReasonType: postponeEntry?.reasonType,
+          note
+        };
+      });
+
+      const total = slots.length;
+      const postponed = slots.filter(s => s.isIncomplete).length;
+      const completed = Math.max(0, total - postponed);
+
+      return {
+        dayIdx,
+        dayName,
+        date: d,
+        dateFormatted,
+        dateISO,
+        slots,
+        total,
+        completed,
+        postponed
+      };
+    });
+
+    const allWeekSlots = schoolDaysData.flatMap(d => d.slots);
+    const totalSlots = allWeekSlots.length;
+    const postponedSlots = allWeekSlots.filter(s => s.isIncomplete).length;
+    const completedSlots = Math.max(0, totalSlots - postponedSlots);
+    const rate = totalSlots > 0 ? Math.round((completedSlots / totalSlots) * 100) : 100;
+
+    const gradeStats = ['1', '2', '3', '4', '5'].map(grade => {
+      const gradeSlots = allWeekSlots.filter(s => s.grade === grade);
+      const total = gradeSlots.length;
+      const postponed = gradeSlots.filter(s => s.isIncomplete).length;
+      const completed = Math.max(0, total - postponed);
+      const gradeRate = total > 0 ? Math.round((completed / total) * 100) : 100;
+      return {
+        grade,
+        gradeLabel: grade === '1' ? 'السنة الأولى' : grade === '2' ? 'السنة الثانية' : grade === '3' ? 'السنة الثالثة' : grade === '4' ? 'السنة الرابعة' : 'السنة الخامسة',
+        total,
+        completed,
+        postponed,
+        rate: gradeRate,
+        slots: gradeSlots
+      };
+    });
+
+    const postponedList = allWeekSlots.filter(s => s.isIncomplete);
+    const notesList = allWeekSlots.filter(s => s.note && s.note.trim());
+    const generalNote = weeklyNotes[weekKey] || '';
+
+    return {
+      sunday,
+      thursday,
+      sundayFormatted,
+      thursdayFormatted,
+      weekKey,
+      schoolDaysData,
+      allWeekSlots,
+      totalSlots,
+      completedSlots,
+      postponedSlots,
+      rate,
+      gradeStats,
+      postponedList,
+      notesList,
+      generalNote
+    };
+  }, [targetDate, semesterStart, meetingsState, postponedSessions, sessionNotes, weeklyNotes, selectedTerm]);
+
   const handleBackup = () => {
     try {
       const backupData = {
@@ -766,6 +957,8 @@ export default function App() {
         teacherInfo,
         meetingsState,
         postponedSessions,
+        sessionNotes,
+        weeklyNotes,
         semesterStart,
         selectedTerm,
         appTheme: themeKey,
@@ -793,6 +986,8 @@ export default function App() {
         const data = JSON.parse(e.target?.result as string);
         if (data.teacherInfo) setTeacherInfo(data.teacherInfo);
         if (data.meetingsState) setMeetingsState(data.meetingsState);
+        if (data.sessionNotes) setSessionNotes(data.sessionNotes);
+        if (data.weeklyNotes) setWeeklyNotes(data.weeklyNotes);
         if (data.postponedSessions) {
           // ensure reason normalization on restore
           const list = data.postponedSessions.map((item: PostponedSession) => ({
@@ -1114,6 +1309,503 @@ export default function App() {
     }
   };
 
+  const changeWeek = (offsetWeeks: number) => {
+    const d = new Date(targetDate);
+    d.setDate(d.getDate() + offsetWeeks * 7);
+    setTargetDate(d.toISOString().split('T')[0]);
+  };
+
+  const resetToCurrentWeek = () => {
+    setTargetDate(new Date().toISOString().split('T')[0]);
+  };
+
+  const handleOpenNoteModal = (slot: {
+    key: string;
+    date: string;
+    gradeSection: string;
+    time: string;
+    topic: string;
+  }) => {
+    setNoteModalSlot(slot);
+    setTempNoteText(sessionNotes[slot.key] || '');
+  };
+
+  const handleSaveNote = () => {
+    if (!noteModalSlot) return;
+    const trimmed = tempNoteText.trim();
+    setSessionNotes(prev => {
+      const next = { ...prev };
+      if (trimmed) {
+        next[noteModalSlot.key] = trimmed;
+      } else {
+        delete next[noteModalSlot.key];
+      }
+      return next;
+    });
+    addNotification('success', 'تم حفظ الملاحظة', `تم تسجيل الملاحظة لحصة ${noteModalSlot.gradeSection}.`);
+    setNoteModalSlot(null);
+    setTempNoteText('');
+  };
+
+  const handleSaveSessionNote = handleSaveNote;
+
+  const handleDeleteNote = (key: string) => {
+    setSessionNotes(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    addNotification('info', 'تم حذف الملاحظة', 'تم حذف الملاحظة بنجاح.');
+  };
+
+  const handleSaveWeeklyGeneralNote = (text: string) => {
+    const weekKey = weeklyReportData.weekKey;
+    setWeeklyNotes(prev => ({
+      ...prev,
+      [weekKey]: text
+    }));
+    addNotification('success', 'تم التحديث', 'تم حفظ الملاحظة الأسبوعية العامة بنجاح.');
+    setEditingWeeklyNoteModal(false);
+  };
+
+  const handleSaveWeeklyNote = () => {
+    handleSaveWeeklyGeneralNote(tempWeeklyNoteText);
+  };
+
+  const generateWeeklyReportHtml = () => {
+    const rData = weeklyReportData;
+    const weekRange = `من الأحد ${rData.sundayFormatted} إلى الخميس ${rData.thursdayFormatted}`;
+    
+    // Rows of all sessions in the week
+    const sessionRowsHtml = rData.allWeekSlots.map((s, idx) => `
+      <tr style="border-bottom: 1px solid #000; min-height: 32px; ${s.isIncomplete ? 'background-color: #fee2e2;' : (idx % 2 === 0 ? 'background-color: #ffffff;' : 'background-color: #f8fafc;')}">
+        <td style="border: 1px solid #000; padding: 5px 3px; font-weight: bold; text-align: center; font-size: 11px;">
+          <div style="font-weight: 900;">${s.dayName}</div>
+          <div style="font-size: 9.5px; color: #475569;">${s.dateFormatted}</div>
+        </td>
+        <td style="border: 1px solid #000; padding: 5px 3px; font-weight: 900; text-align: center; font-family: 'Dubai', sans-serif; font-size: 13px; color: #b45309;" dir="ltr">
+          ${s.time}
+        </td>
+        <td style="border: 1px solid #000; padding: 5px 3px; font-weight: 900; text-align: center; font-size: 11px;">
+          السنة ${s.gradeSection}
+        </td>
+        <td style="border: 1px solid #000; padding: 5px 6px; text-align: right; font-size: 10.5px; line-height: 1.35;">
+          ${s.topic ? `<div style="font-weight: 900; color: #1e3a8a; margin-bottom: 2px;">${s.topic}</div>` : ''}
+          <div style="color: #475569; font-size: 10px;">${s.terminalCompetency || ''}</div>
+        </td>
+        <td style="border: 1px solid #000; padding: 5px 6px; text-align: right; font-size: 10.5px; line-height: 1.35;">
+          <div style="font-weight: 700; color: #0f172a;">${s.learnings}</div>
+          <div style="color: #475569; font-size: 10px; margin-top: 2px;">${s.content}</div>
+        </td>
+        <td style="border: 1px solid #000; padding: 5px 4px; text-align: center; font-size: 10.5px;">
+          ${s.isIncomplete 
+            ? `<span style="display: inline-block; padding: 2px 6px; border-radius: 4px; background: #fee2e2; color: #b91c1c; font-weight: 900; font-size: 9.5px; border: 1px solid #f87171;">مؤجلة (${s.postponeReason || 'نصف يوم تعليمي'})</span>`
+            : `<span style="display: inline-block; padding: 2px 6px; border-radius: 4px; background: #dcfce7; color: #15803d; font-weight: 900; font-size: 9.5px; border: 1px solid #86efac;">منجزة ✓</span>`}
+        </td>
+        <td style="border: 1px solid #000; padding: 5px 6px; text-align: right; font-size: 10px; font-weight: 600;">
+          ${s.note ? `<div style="color: #d97706; font-weight: 900;">📝 ${s.note}</div>` : ''}
+          ${s.isIncomplete && s.postponeReason ? `<div style="color: #dc2626; font-size: 9.5px; font-weight: 700;">سبب التأجيل: ${s.postponeReason}</div>` : ''}
+          ${!s.note && !s.isIncomplete ? '<span style="color: #94a3b8;">سير عادي</span>' : ''}
+        </td>
+      </tr>
+    `).join('');
+
+    // Grade breakdown table rows
+    const gradeRowsHtml = rData.gradeStats.map(g => `
+      <tr style="border-bottom: 1px solid #000; text-align: center; font-size: 11px;">
+        <td style="border: 1px solid #000; padding: 5px 6px; font-weight: 900; background: #f8fafc;">${g.gradeLabel}</td>
+        <td style="border: 1px solid #000; padding: 5px 6px; font-weight: bold;">${g.total}</td>
+        <td style="border: 1px solid #000; padding: 5px 6px; font-weight: 900; color: #15803d; background: #f0fdf4;">${g.completed}</td>
+        <td style="border: 1px solid #000; padding: 5px 6px; font-weight: 900; color: ${g.postponed > 0 ? '#b91c1c' : '#64748b'}; background: ${g.postponed > 0 ? '#fef2f2' : '#ffffff'};">${g.postponed}</td>
+        <td style="border: 1px solid #000; padding: 5px 6px; font-weight: 900;">
+          <span style="display: inline-block; padding: 2px 8px; border-radius: 9999px; ${g.rate >= 90 ? 'background:#dcfce7; color:#166534;' : g.rate >= 70 ? 'background:#fef9c3; color:#854d0e;' : 'background:#fee2e2; color:#991b1b;'}">
+            ${g.rate}%
+          </span>
+        </td>
+      </tr>
+    `).join('');
+
+    // Postponed list rows
+    const postponedListHtml = rData.postponedList.length > 0 
+      ? rData.postponedList.map((p, pIdx) => `
+        <tr style="border-bottom: 1px solid #000; font-size: 11px;">
+          <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">${pIdx + 1}</td>
+          <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">${p.dayName} (${p.dateFormatted})</td>
+          <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">السنة ${p.gradeSection}</td>
+          <td style="border: 1px solid #000; padding: 5px; text-align: center; font-family: 'Dubai', sans-serif; font-size: 12px; font-weight: 900;" dir="ltr">${p.time}</td>
+          <td style="border: 1px solid #000; padding: 5px 8px; text-align: right; font-weight: bold;">${p.topic} — ${p.learnings}</td>
+          <td style="border: 1px solid #000; padding: 5px 8px; text-align: right; font-weight: 900; color: #b91c1c; background: #fff1f2;">${p.postponeReason || 'نصف يوم تعليمي'}</td>
+        </tr>
+      `).join('')
+      : `<tr><td colspan="6" style="border: 1px solid #000; padding: 10px; text-align: center; color: #15803d; font-weight: 900; background: #f0fdf4;">✓ لا توجد أي حصص مؤجلة خلال هذا الأسبوع — تم تنفيذ كافة الحصص بنسبة 100%.</td></tr>`;
+
+    // Notes list rows
+    const notesListHtml = rData.notesList.length > 0
+      ? rData.notesList.map((n, nIdx) => `
+        <tr style="border-bottom: 1px solid #000; font-size: 11px;">
+          <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">${nIdx + 1}</td>
+          <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">${n.dayName} (${n.dateFormatted})</td>
+          <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold;">السنة ${n.gradeSection}</td>
+          <td style="border: 1px solid #000; padding: 5px; text-align: center; font-family: 'Dubai', sans-serif; font-size: 12px; font-weight: 900;" dir="ltr">${n.time}</td>
+          <td style="border: 1px solid #000; padding: 5px 8px; text-align: right; font-weight: bold;">${n.topic}</td>
+          <td style="border: 1px solid #000; padding: 5px 8px; text-align: right; font-weight: 700; color: #92400e; background: #fffbeb;">${n.note}</td>
+        </tr>
+      `).join('')
+      : `<tr><td colspan="6" style="border: 1px solid #000; padding: 10px; text-align: center; color: #475569; font-weight: bold; background: #f8fafc;">لم تسجل أي ملاحظات خاصة بالحرج أو صعوبات التعلم خلال هذا الأسبوع.</td></tr>`;
+
+    return `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>التقرير الأسبوعي الشامل - ${teacherInfo.name || 'الزايز محمد الطاهر'} - ${weekRange}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.cdnfonts.com/css/dubai" rel="stylesheet">
+  <style>
+    @font-face {
+      font-family: 'Dubai';
+      src: local('Dubai'),
+           url('https://cdn.jsdelivr.net/gh/rtaibah/dubai-font-cdn@master/fonts/Dubai-Bold.woff2') format('woff2');
+      font-weight: 700 900;
+      font-style: normal;
+      font-display: swap;
+    }
+    @page {
+      size: A4 portrait;
+      margin: 8mm 6mm;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    body {
+      font-family: 'Cairo', -apple-system, BlinkMacSystemFont, sans-serif;
+      direction: rtl;
+      text-align: right;
+      background: #ffffff;
+      color: #000000;
+      padding: 10px;
+      margin: 0;
+    }
+    .report-sheet {
+      width: 100%;
+      max-width: 850px;
+      margin: 0 auto;
+      background: #ffffff;
+      color: #000000;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 2px solid #000000;
+      text-align: center;
+      font-size: 11px;
+      margin-top: 6px;
+      page-break-inside: avoid;
+    }
+    th, td {
+      border: 1px solid #000000;
+      vertical-align: middle;
+    }
+    th {
+      font-weight: 900;
+      background-color: #f1f5f9;
+      color: #000000;
+    }
+    .action-bar-top {
+      position: fixed;
+      top: 15px;
+      left: 15px;
+      z-index: 1000;
+      display: flex;
+      gap: 10px;
+      background: rgba(15, 23, 42, 0.9);
+      padding: 8px 16px;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+      backdrop-filter: blur(8px);
+    }
+    .btn-print {
+      background: #2563eb;
+      color: #ffffff;
+      border: none;
+      padding: 8px 20px;
+      border-radius: 8px;
+      font-weight: 900;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: 'Cairo', sans-serif;
+    }
+    @media print {
+      .action-bar-top {
+        display: none !important;
+      }
+      body {
+        padding: 0 !important;
+      }
+      .report-sheet {
+        max-width: 100% !important;
+      }
+    }
+  </style>
+  <script>
+    window.addEventListener('DOMContentLoaded', function() {
+      setTimeout(function() {
+        try { window.print(); } catch(e) {}
+      }, 500);
+    });
+  </script>
+</head>
+<body>
+  <div class="action-bar-top">
+    <button class="btn-print" onclick="window.print()">🖨️ طباعة التقرير الآن (A4 / PDF)</button>
+  </div>
+  <div class="report-sheet">
+    <!-- Official Algerian Header -->
+    <div style="border-bottom: 2px solid #000000; padding-bottom: 8px; margin-bottom: 10px;">
+      <div style="text-align: center; font-weight: 900; font-size: 12.5px; line-height: 1.35;">
+        الجمهورية الجزائرية الديمقراطية الشعبية<br>
+        وزارة التربية الوطنية<br>
+        مديرية التربية — مفتشية التعليم الابتدائي للتربية البدنية والرياضية
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 8px; font-size: 11.5px; font-weight: 900;">
+        <div style="text-align: right;">
+          <div>المؤسسة: <strong>${teacherInfo.school}</strong></div>
+          <div>أستاذ المادة: <strong>${teacherInfo.name || 'الزايز محمد الطاهر'}</strong></div>
+        </div>
+        <div style="text-align: center;">
+          <div style="background: #000000; color: #ffffff; padding: 5px 24px; border-radius: 9999px; font-size: 14px; font-weight: 900; display: inline-block;">
+            التقرير الأسبوعي الشامل لتنفيذ المنهاج
+          </div>
+          <div style="font-size: 11px; font-weight: 900; color: #1e3a8a; margin-top: 3px;">
+            ${weekRange}
+          </div>
+        </div>
+        <div style="text-align: left;" dir="ltr">
+          <div>السنة الدراسية: <strong>${academicYear}</strong></div>
+          <div>الميدان: <strong>${currentTermConfig.shortFieldName}</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 1: KPI Statistics Summary -->
+    <div style="margin-bottom: 12px;">
+      <div style="font-weight: 900; font-size: 12px; border-right: 4px solid #2563eb; padding-right: 8px; margin-bottom: 5px; color: #1e3a8a;">
+        أولاً: الحصيلة الإحصائية العامة للأسبوع (المخطط والمنجز والمؤجل):
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center;">
+        <div style="border: 1.5px solid #000; padding: 5px; border-radius: 6px; background: #f8fafc;">
+          <div style="font-size: 9.5px; font-weight: 900; color: #475569;">إجمالي الحصص المبرمجة</div>
+          <div style="font-size: 18px; font-weight: 900; color: #0f172a;">${rData.totalSlots}</div>
+          <div style="font-size: 9px; color: #64748b;">4 أيام (16 حصة)</div>
+        </div>
+        <div style="border: 1.5px solid #16a34a; padding: 5px; border-radius: 6px; background: #f0fdf4;">
+          <div style="font-size: 9.5px; font-weight: 900; color: #166534;">الحصص المنجزة بنجاح</div>
+          <div style="font-size: 18px; font-weight: 900; color: #15803d;">${rData.completedSlots}</div>
+          <div style="font-size: 9px; font-weight: bold; color: #166534;">نسبة ${(rData.totalSlots > 0 ? (rData.completedSlots / rData.totalSlots * 100).toFixed(0) : 0)}%</div>
+        </div>
+        <div style="border: 1.5px solid ${rData.postponedSlots > 0 ? '#dc2626' : '#94a3b8'}; padding: 5px; border-radius: 6px; background: ${rData.postponedSlots > 0 ? '#fef2f2' : '#f8fafc'};">
+          <div style="font-size: 9.5px; font-weight: 900; color: ${rData.postponedSlots > 0 ? '#991b1b' : '#64748b'};">الحصص المؤجلة</div>
+          <div style="font-size: 18px; font-weight: 900; color: ${rData.postponedSlots > 0 ? '#b91c1c' : '#64748b'};">${rData.postponedSlots}</div>
+          <div style="font-size: 9px; font-weight: bold; color: ${rData.postponedSlots > 0 ? '#991b1b' : '#64748b'};">نسبة ${(rData.totalSlots > 0 ? (rData.postponedSlots / rData.totalSlots * 100).toFixed(0) : 0)}%</div>
+        </div>
+        <div style="border: 1.5px solid #2563eb; padding: 5px; border-radius: 6px; background: #eff6ff;">
+          <div style="font-size: 9.5px; font-weight: 900; color: #1e40af;">نسبة الإنجاز العامة</div>
+          <div style="font-size: 18px; font-weight: 900; color: #1d4ed8;">${rData.rate}%</div>
+          <div style="font-size: 9px; font-weight: bold; color: #1e40af;">${rData.rate >= 90 ? 'إنجاز ممتاز' : rData.rate >= 75 ? 'أداء جيد' : 'يحتاج استدراك'}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: Grade Level Breakdown -->
+    <div style="margin-bottom: 12px;">
+      <div style="font-weight: 900; font-size: 11.5px; border-right: 4px solid #10b981; padding-right: 8px; margin-bottom: 4px; color: #065f46;">
+        ثانياً: تفصيل الإنجاز والتأجيل حسب المستويات والأفواج التربوية:
+      </div>
+      <table>
+        <thead>
+          <tr style="background: #f1f5f9; font-weight: 900;">
+            <th style="padding: 4px 6px; width: 28%;">المستوى الدراسي</th>
+            <th style="padding: 4px 6px; width: 18%;">الحصص المبرمجة</th>
+            <th style="padding: 4px 6px; width: 18%;">الحصص المنجزة</th>
+            <th style="padding: 4px 6px; width: 18%;">الحصص المؤجلة</th>
+            <th style="padding: 4px 6px; width: 18%;">نسبة الإنجاز</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${gradeRowsHtml}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Section 3: Detailed Class Schedule & Execution Table -->
+    <div style="margin-bottom: 12px;">
+      <div style="font-weight: 900; font-size: 11.5px; border-right: 4px solid #f97316; padding-right: 8px; margin-bottom: 4px; color: #9a3412;">
+        ثالثاً: الجدول التفصيلي لحصص الأسبوع وحالة إنجازها:
+      </div>
+      <table>
+        <thead>
+          <tr style="background: #f8fafc; font-weight: 900;">
+            <th style="padding: 4px 3px; width: 10%;">اليوم/التاريخ</th>
+            <th style="padding: 4px 3px; width: 11%;">الساعة</th>
+            <th style="padding: 4px 3px; width: 10%;">الفوج</th>
+            <th style="padding: 4px 5px; width: 21%;">نوع الحصة والكفاءة</th>
+            <th style="padding: 4px 5px; width: 25%;">التعلمات ومحتوى الإنجاز</th>
+            <th style="padding: 4px 3px; width: 10%;">الحالة</th>
+            <th style="padding: 4px 5px; width: 13%;">الملاحظة</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sessionRowsHtml}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Section 4: Postponed List & Observations Section -->
+    <div style="margin-bottom: 12px;">
+      <div style="font-weight: 900; font-size: 11.5px; border-right: 4px solid #ef4444; padding-right: 8px; margin-bottom: 4px; color: #991b1b;">
+        رابعاً: قائمة الحصص المؤجلة ومبررات التأجيل خلال الأسبوع:
+      </div>
+      <table>
+        <thead>
+          <tr style="background: #fef2f2; font-weight: 900; color: #991b1b;">
+            <th style="padding: 4px; width: 5%;">#</th>
+            <th style="padding: 4px; width: 16%;">اليوم والتاريخ</th>
+            <th style="padding: 4px; width: 12%;">القسم</th>
+            <th style="padding: 4px; width: 11%;">التوقيت</th>
+            <th style="padding: 4px; width: 33%;">الحصة والمورد المعرفي</th>
+            <th style="padding: 4px; width: 23%;">سبب ومبرر التأجيل</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${postponedListHtml}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Section 5: Pedagogical Notes Recorded During Week -->
+    <div style="margin-bottom: 12px;">
+      <div style="font-weight: 900; font-size: 11.5px; border-right: 4px solid #8b5cf6; padding-right: 8px; margin-bottom: 4px; color: #5b21b6;">
+        خامساً: قائمة الملاحظات البيداغوجية والتقييمية المسجلة خلال الأسبوع:
+      </div>
+      <table>
+        <thead>
+          <tr style="background: #faf5ff; font-weight: 900; color: #5b21b6;">
+            <th style="padding: 4px; width: 5%;">#</th>
+            <th style="padding: 4px; width: 16%;">اليوم والتاريخ</th>
+            <th style="padding: 4px; width: 12%;">القسم</th>
+            <th style="padding: 4px; width: 11%;">التوقيت</th>
+            <th style="padding: 4px; width: 26%;">الموضوع</th>
+            <th style="padding: 4px; width: 30%;">الملاحظة البيداغوجية</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${notesListHtml}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Section 6: Weekly Pedagogical General Note -->
+    <div style="margin-bottom: 14px; border: 1.5px solid #000; border-radius: 6px; padding: 8px; background: #fafaf9;">
+      <div style="font-weight: 900; font-size: 11px; color: #1e3a8a; margin-bottom: 3px;">
+        سادساً: التوجيه والملاحظات الأسبوعية العامة للأستاذ:
+      </div>
+      <p style="font-size: 10.5px; font-weight: 700; line-height: 1.5; color: #1c1917;">
+        ${rData.generalNote || 'سير بيداغوجي منتظم للدروس وفق المنهاج والتوزيع الفصلي المعتمد. تم التركيز على قواعد الأمن والسلامة أثناء الألعاب، وتفاعل التلاميذ إيجابي مع مختلف الوضعيات الحركية والعتاد البيداغوجي.'}
+      </p>
+    </div>
+
+    <!-- Signatures Block -->
+    <div style="margin-top: 16px; padding-top: 8px; border-top: 2px solid #000000; display: flex; justify-content: space-between; align-items: flex-start; font-size: 11.5px; font-weight: 900;">
+      <div style="text-align: center; width: 30%;">
+        <div>أستاذ مادة التربية البدنية</div>
+        <div style="margin-top: 20px; color: #000;">${showSignatureNames ? (teacherInfo.name || 'الزايز محمد الطاهر') : '.............................'}</div>
+      </div>
+      <div style="text-align: center; width: 30%;">
+        <div>تأشيرة وختم السيد المدير</div>
+        <div style="margin-top: 20px; color: #000;">${showSignatureNames ? (teacherInfo.manager || 'السيد المدير') : '.............................'}</div>
+      </div>
+      <div style="text-align: center; width: 30%;">
+        <div>تأشيرة وملاحظات السيد المفتش</div>
+        <div style="margin-top: 20px; color: #000;">${showSignatureNames ? (teacherInfo.inspector || 'السيد المفتش') : '.............................'}</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+  };
+
+  const handleDownloadWeeklyReportFile = () => {
+    try {
+      const html = generateWeeklyReportHtml();
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `التقرير_الأسبوعي_${weeklyReportData.sundayFormatted}_إلى_${weeklyReportData.thursdayFormatted}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      addNotification('success', 'تم تحميل التقرير الأسبوعي', 'تم تنزيل ملف التقرير بتنسيق A4 للطباعة أو الحفظ كـ PDF.');
+    } catch {
+      addNotification('error', 'فشل التحميل', 'تعذر تجهيز ملف التقرير الأسبوعي.');
+    }
+  };
+
+  const handlePrintWeeklyReport = () => {
+    try {
+      setActiveView('weeklyReport');
+      const html = generateWeeklyReportHtml();
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      setShowWeeklyPrintModal(true);
+
+      // Attempt direct print
+      try {
+        window.print();
+      } catch (e) {
+        console.warn("Direct window.print() failed:", e);
+      }
+
+      // Iframe fallback
+      try {
+        let iframe = document.getElementById('print-weekly-iframe') as HTMLIFrameElement;
+        if (iframe) iframe.remove();
+        iframe = document.createElement('iframe');
+        iframe.id = 'print-weekly-iframe';
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = '0';
+        iframe.style.visibility = 'hidden';
+        iframe.src = url;
+        document.body.appendChild(iframe);
+        iframe.onload = () => {
+          setTimeout(() => {
+            try {
+              iframe.contentWindow?.focus();
+              iframe.contentWindow?.print();
+            } catch (err) {
+              console.warn("Iframe print blocked:", err);
+            }
+          }, 300);
+        };
+      } catch (err) {
+        console.warn("Could not append weekly print iframe:", err);
+      }
+
+      addNotification('info', 'طباعة التقرير الأسبوعي', 'تم تجهيز التقرير الأسبوعي الشامل وفتح خيارات الطباعة / الحفظ كـ PDF.');
+    } catch {
+      addNotification('error', 'خطأ في الطباعة', 'تعذر إطلاق أمر طباعة التقرير.');
+    }
+  };
+
   return (
     <div className={`min-h-screen flex flex-col md:flex-row overflow-hidden transition-colors duration-400 ${
       isLight ? 'bg-slate-100 text-slate-800' : isBlack ? 'bg-black text-white' : 'bg-slate-900 text-white'
@@ -1203,6 +1895,15 @@ export default function App() {
             </div>
           </div>
 
+          <IconButton 
+            icon={FileCheck} 
+            label="التقرير الأسبوعي (PDF)" 
+            active={activeView === 'weeklyReport'} 
+            onClick={() => setActiveView('weeklyReport')} 
+            color={currentTheme.primary} 
+            isLight={isLight} 
+            isBlack={isBlack} 
+          />
           <IconButton icon={MessageSquare} label="الملاحظات" active={activeView === 'notes'} onClick={() => setActiveView('notes')} color={currentTheme.primary} isLight={isLight} isBlack={isBlack} />
           <IconButton icon={List} label="توزيع الحصص" active={activeView === 'distribution'} onClick={() => setActiveView('distribution')} color={currentTheme.primary} isLight={isLight} isBlack={isBlack} />
           <IconButton icon={SettingsIcon} label="الإعدادات والثيمات" active={activeView === 'settings'} onClick={() => setActiveView('settings')} color={currentTheme.primary} isLight={isLight} isBlack={isBlack} />
@@ -1601,9 +2302,48 @@ export default function App() {
                 </div>
 
                 {/* Date Fields */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-200/60 dark:border-white/10">
-                  <ModernField label="تاريخ بداية الفصل" type="date" icon={Calendar} value={semesterStart} onChange={setSemesterStart} color={currentTheme.primary} isLight={isLight} isBlack={isBlack} />
-                  <ModernField label="تاريخ معاينة الدفتر" type="date" icon={Clock} value={targetDate} onChange={setTargetDate} color={currentTheme.primary} isLight={isLight} isBlack={isBlack} />
+                <div className="space-y-4 pt-4 border-t border-slate-200/60 dark:border-white/10">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <ModernField 
+                      label="تاريخ بداية الفصل الدراسي (انطلاق الحصص)" 
+                      type="date" 
+                      icon={Calendar} 
+                      value={semesterStart} 
+                      onChange={(val) => {
+                        setSemesterStart(val);
+                        addNotification('success', 'تاريخ بداية الفصل', `تم ضبط تاريخ انطلاق الحصص: ${val}`);
+                      }} 
+                      color={currentTheme.primary} 
+                      isLight={isLight} 
+                      isBlack={isBlack} 
+                    />
+                    <ModernField 
+                      label="تاريخ معاينة الدفتر" 
+                      type="date" 
+                      icon={Clock} 
+                      value={targetDate} 
+                      onChange={setTargetDate} 
+                      color={currentTheme.primary} 
+                      isLight={isLight} 
+                      isBlack={isBlack} 
+                    />
+                  </div>
+                  
+                  {/* Pedagogical Rule Box */}
+                  <div className={`p-4 rounded-2xl border text-xs leading-relaxed space-y-1.5 ${
+                    isLight ? 'bg-blue-50/80 border-blue-200 text-blue-900' : 'bg-blue-500/10 border-blue-500/20 text-blue-200'
+                  }`}>
+                    <div className="font-black flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                      <Sparkles size={15} />
+                      <span>قاعدة انطلاق وتسيير الحصص البيداغوجية:</span>
+                    </div>
+                    <p className="text-[11px] font-bold opacity-90 leading-normal">
+                      • <strong>تاريخ بداية الفصل:</strong> هو أول تاريخ رسمي لانطلاق الحصص. كل ما يسبق هذا التاريخ يعتبر <strong>عطلة صيفية / مدرسية</strong> ولا تُكتب به أي حصة.
+                    </p>
+                    <p className="text-[11px] font-bold opacity-90 leading-normal">
+                      • <strong>ترتيب الحصص الصارم:</strong> الحصة الأولى لكل فوج هي دائماً <strong>«حصة التعارف والتنظيم والاتصال»</strong>، تليها في اللقاء الثاني مباشرة <strong>«التقويم التشخيصي»</strong>، ثم تليها <strong>الوحدات التعليمية</strong> بالتسلسل.
+                    </p>
+                  </div>
                 </div>
               </GlassPanel>
 
@@ -2342,6 +3082,598 @@ export default function App() {
                 </div>
               )}
             </div>
+          ) : activeView === 'weeklyReport' ? (
+            /* Comprehensive Weekly Report View (التقرير الأسبوعي الشامل) */
+            <div className="space-y-8">
+              {/* Header & Controls Bar */}
+              <div className={`p-6 md:p-8 rounded-[2.5rem] border flex flex-col lg:flex-row items-center justify-between gap-6 no-print ${
+                isLight ? 'bg-white border-slate-200 shadow-sm' : isBlack ? 'bg-zinc-900 border-zinc-800' : 'bg-white/5 border-white/10'
+              }`}>
+                <div className="flex items-center gap-4 text-right w-full lg:w-auto">
+                  <div className="p-4 rounded-2xl bg-blue-500/10 text-blue-500 border border-blue-500/20 shrink-0">
+                    <FileCheck size={32} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className={`text-2xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                        التقرير الأسبوعي الشامل (A4 / PDF)
+                      </h3>
+                      <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-500 font-black border border-blue-500/20">
+                        متابعة تربوية رسمية
+                      </span>
+                    </div>
+                    <p className={`text-xs font-bold mt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                      للأسبوع من: <strong className="text-blue-600 dark:text-blue-400">{weeklyReportData.sundayFormatted}</strong> إلى: <strong className="text-blue-600 dark:text-blue-400">{weeklyReportData.thursdayFormatted}</strong> • {academicYear}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Week Selector & Export Actions */}
+                <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
+                  {/* Week Navigator */}
+                  <div className={`flex items-center gap-1 p-1 rounded-xl border ${
+                    isLight ? 'bg-slate-50 border-slate-200' : isBlack ? 'bg-black border-zinc-800' : 'bg-slate-900 border-white/10'
+                  }`}>
+                    <button 
+                      onClick={() => changeDay(-7)} 
+                      className={`p-2 rounded-lg transition-colors ${isLight ? 'hover:bg-slate-200 text-slate-700' : 'hover:bg-white/10 text-slate-300'}`}
+                      title="الأسبوع السابق"
+                    >
+                      <ChevronRight size={18} />
+                    </button>
+                    <button
+                      onClick={() => setTargetDate(new Date().toISOString().split('T')[0])}
+                      className={`px-3 py-1 rounded-lg text-xs font-black transition-colors ${
+                        isLight ? 'hover:bg-slate-200 text-slate-800' : 'hover:bg-white/10 text-white'
+                      }`}
+                    >
+                      هذا الأسبوع
+                    </button>
+                    <button 
+                      onClick={() => changeDay(7)} 
+                      className={`p-2 rounded-lg transition-colors ${isLight ? 'hover:bg-slate-200 text-slate-700' : 'hover:bg-white/10 text-slate-300'}`}
+                      title="الأسبوع التالي"
+                    >
+                      <ChevronLeft size={18} />
+                    </button>
+                  </div>
+
+                  {/* General Weekly Note Button */}
+                  <button
+                    onClick={() => {
+                      setTempWeeklyNoteText(weeklyReportData.generalNote);
+                      setEditingWeeklyNoteModal(true);
+                    }}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black border transition-all ${
+                      weeklyReportData.generalNote 
+                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-500' 
+                        : isLight ? 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700' : 'bg-white/5 border-white/10 hover:bg-white/10 text-white'
+                    }`}
+                  >
+                    <MessageSquare size={15} />
+                    <span>{weeklyReportData.generalNote ? 'تعديل ملاحظة الأسبوع' : 'إضافة ملاحظة الأسبوع'}</span>
+                  </button>
+
+                  {/* Download HTML/A4 */}
+                  <button
+                    onClick={handleDownloadWeeklyReportFile}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black border transition-all ${
+                      isLight ? 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-700' : 'bg-white/5 border-white/10 hover:bg-white/10 text-white'
+                    }`}
+                  >
+                    <Download size={15} />
+                    <span>تحميل ملف A4</span>
+                  </button>
+
+                  {/* Print / Export PDF */}
+                  <button
+                    onClick={handlePrintWeeklyReport}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-blue-600/30 active:scale-95"
+                  >
+                    <Printer size={16} />
+                    <span>طباعة التقرير (A4 / PDF)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* KPI Cards Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                {/* KPI 1: إجمالي الحصص */}
+                <div className={`p-6 rounded-3xl border transition-all ${
+                  isLight ? 'bg-white border-slate-200 shadow-sm' : isBlack ? 'bg-zinc-900 border-zinc-800' : 'bg-white/5 border-white/10'
+                }`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-black text-slate-400 uppercase">إجمالي الحصص المبرمجة</span>
+                    <div className="p-2 rounded-xl bg-blue-500/10 text-blue-500"><Calendar size={18} /></div>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className={`text-3xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                      {weeklyReportData.totalSlots}
+                    </span>
+                    <span className="text-xs font-bold text-slate-400">حصة بالأسبوع</span>
+                  </div>
+                  <p className={`text-[10px] mt-2 font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    4 أيام دراسية (الأحد، الاثنين، الأربعاء، الخميس)
+                  </p>
+                </div>
+
+                {/* KPI 2: الحصص المنجزة */}
+                <div className={`p-6 rounded-3xl border transition-all ${
+                  isLight ? 'bg-white border-slate-200 shadow-sm' : isBlack ? 'bg-zinc-900 border-zinc-800' : 'bg-white/5 border-white/10'
+                }`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-black text-emerald-500 uppercase">الحصص المنجزة بنجاح</span>
+                    <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500"><CheckCircle size={18} /></div>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className={`text-3xl font-black text-emerald-600 dark:text-emerald-400`}>
+                      {weeklyReportData.completedSlots}
+                    </span>
+                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">حصة مثبتة</span>
+                  </div>
+                  <p className={`text-[10px] mt-2 font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    حسب التسلسل البيداغوجي المعتمد في الدفتر
+                  </p>
+                </div>
+
+                {/* KPI 3: الحصص المؤجلة */}
+                <div className={`p-6 rounded-3xl border transition-all ${
+                  isLight ? 'bg-white border-slate-200 shadow-sm' : isBlack ? 'bg-zinc-900 border-zinc-800' : 'bg-white/5 border-white/10'
+                }`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-black text-rose-500 uppercase">الحصص المؤجلة</span>
+                    <div className="p-2 rounded-xl bg-rose-500/10 text-rose-500"><AlertCircle size={18} /></div>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className={`text-3xl font-black ${weeklyReportData.postponedSlots > 0 ? 'text-rose-600 dark:text-rose-400' : isLight ? 'text-slate-900' : 'text-white'}`}>
+                      {weeklyReportData.postponedSlots}
+                    </span>
+                    <span className="text-xs font-bold text-slate-400">حصة مؤجلة</span>
+                  </div>
+                  <p className={`text-[10px] mt-2 font-bold ${weeklyReportData.postponedSlots > 0 ? 'text-rose-500 font-bold' : isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    {weeklyReportData.postponedSlots > 0 ? 'تم تعويض التأخير آلياً بحذف الإدماج' : 'جدول منتظم بنسبة 100%'}
+                  </p>
+                </div>
+
+                {/* KPI 4: نسبة الإنجاز */}
+                <div className={`p-6 rounded-3xl border transition-all ${
+                  isLight ? 'bg-white border-slate-200 shadow-sm' : isBlack ? 'bg-zinc-900 border-zinc-800' : 'bg-white/5 border-white/10'
+                }`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-black text-blue-500 uppercase">نسبة الإنجاز الأسبوعية</span>
+                    <div className="p-2 rounded-xl bg-blue-500/10 text-blue-500"><Award size={18} /></div>
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-black text-blue-600 dark:text-blue-400">
+                      {weeklyReportData.rate}%
+                    </span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                      weeklyReportData.rate >= 90 ? 'bg-emerald-500/15 text-emerald-500' : weeklyReportData.rate >= 75 ? 'bg-blue-500/15 text-blue-500' : 'bg-amber-500/15 text-amber-500'
+                    }`}>
+                      {weeklyReportData.rate >= 90 ? 'إنجاز ممتاز' : weeklyReportData.rate >= 75 ? 'أداء جيد' : 'يحتاج استدراك'}
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-200 dark:bg-white/10 h-2 rounded-full mt-3 overflow-hidden">
+                    <div className="bg-blue-600 h-full rounded-full transition-all duration-500" style={{ width: `${weeklyReportData.rate}%` }}></div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 1: تفصيل الإنجاز والتأجيل حسب المستويات والأفواج */}
+              <GlassPanel isLight={isLight} isBlack={isBlack} className="p-8 space-y-6">
+                <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-white/10">
+                  <div className="flex items-center gap-3">
+                    <Layers size={22} className="text-emerald-500" />
+                    <div>
+                      <h4 className={`text-lg font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                        تفصيل الإنجاز حسب المستويات والأفواج التربوية
+                      </h4>
+                      <p className="text-xs font-bold text-slate-400">
+                        متابعة نسب إنجاز مذكرات التربية البدنية والرياضية من السنة الأولى إلى الخامسة
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                    5 مستويات دراسية
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-xs md:text-sm">
+                    <thead>
+                      <tr className={`border-b font-black ${isLight ? 'border-slate-200 text-slate-700 bg-slate-50' : 'border-white/10 text-slate-300 bg-white/5'}`}>
+                        <th className="py-3 px-4">المستوى الدراسي</th>
+                        <th className="py-3 px-4 text-center">الحصص المبرمجة</th>
+                        <th className="py-3 px-4 text-center">الحصص المنجزة</th>
+                        <th className="py-3 px-4 text-center">الحصص المؤجلة</th>
+                        <th className="py-3 px-4 text-center">نسبة الإنجاز</th>
+                        <th className="py-3 px-4 w-44">مؤشر التقدم</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {weeklyReportData.gradeStats.map((gs, i) => (
+                        <tr key={i} className={`border-b transition-colors ${
+                          isLight ? 'border-slate-100 hover:bg-slate-50/80' : 'border-white/5 hover:bg-white/[0.02]'
+                        }`}>
+                          <td className="py-3.5 px-4 font-black">
+                            <span className="text-blue-600 dark:text-blue-400 ml-2">●</span>
+                            {gs.gradeLabel}
+                          </td>
+                          <td className="py-3.5 px-4 text-center font-bold">{gs.total}</td>
+                          <td className="py-3.5 px-4 text-center font-black text-emerald-600 dark:text-emerald-400">{gs.completed}</td>
+                          <td className="py-3.5 px-4 text-center font-black text-rose-500">
+                            {gs.postponed > 0 ? `${gs.postponed} مؤجلة` : '—'}
+                          </td>
+                          <td className="py-3.5 px-4 text-center font-black">
+                            <span className={`px-2 py-0.5 rounded-full text-xs ${
+                              gs.rate >= 90 ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-blue-500/15 text-blue-600 dark:text-blue-400'
+                            }`}>
+                              {gs.rate}%
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <div className="w-full bg-slate-200 dark:bg-white/10 h-2 rounded-full overflow-hidden">
+                              <div className={`h-full rounded-full ${gs.rate === 100 ? 'bg-emerald-500' : 'bg-blue-600'}`} style={{ width: `${gs.rate}%` }}></div>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </GlassPanel>
+
+              {/* Section 2: الحصص المؤجلة ومبرراتها */}
+              <GlassPanel isLight={isLight} isBlack={isBlack} className="p-8 space-y-6">
+                <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-white/10">
+                  <div className="flex items-center gap-3">
+                    <AlertCircle size={22} className="text-rose-500" />
+                    <div>
+                      <h4 className={`text-lg font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                        قائمة الحصص المؤجلة ومبررات التأجيل خلال الأسبوع
+                      </h4>
+                      <p className="text-xs font-bold text-slate-400">
+                        بيان الأسباب الرسمية (نصف يوم تعليمي، منافسات، أو غيرها) وإجراءات المعالجة البيداغوجية
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`text-xs font-bold px-3 py-1 rounded-full border ${
+                    weeklyReportData.postponedList.length > 0 
+                      ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' 
+                      : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                  }`}>
+                    {weeklyReportData.postponedList.length > 0 ? `${weeklyReportData.postponedList.length} حصص مؤجلة` : 'لا توجد تأجيلات'}
+                  </span>
+                </div>
+
+                {weeklyReportData.postponedList.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-right text-xs md:text-sm">
+                      <thead>
+                        <tr className={`border-b font-black ${isLight ? 'border-rose-200 text-rose-900 bg-rose-50' : 'border-rose-900/40 text-rose-300 bg-rose-950/20'}`}>
+                          <th className="py-3 px-4">اليوم والتاريخ</th>
+                          <th className="py-3 px-4">القسم</th>
+                          <th className="py-3 px-4">التوقيت</th>
+                          <th className="py-3 px-4">الحصة والمورد المعرفي</th>
+                          <th className="py-3 px-4">سبب ومبرر التأجيل</th>
+                          <th className="py-3 px-4">الإجراء البيداغوجي</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {weeklyReportData.postponedList.map((slot, i) => (
+                          <tr key={i} className={`border-b ${isLight ? 'border-slate-100' : 'border-white/5'}`}>
+                            <td className="py-3 px-4 font-black">{slot.dayName} {slot.dateFormatted}</td>
+                            <td className="py-3 px-4 font-bold text-blue-600 dark:text-blue-400">السنة {slot.gradeSection}</td>
+                            <td className="py-3 px-4 font-mono font-bold" dir="ltr">{slot.time}</td>
+                            <td className="py-3 px-4 font-bold max-w-xs">{slot.topic} — {slot.learnings}</td>
+                            <td className="py-3 px-4 font-black text-rose-600 dark:text-rose-400">
+                              <span className="px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20">
+                                {slot.postponeReason || 'نصف يوم تعليمي'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-[11px] font-bold text-slate-500">
+                              حذف حصة إدماج لتعويض التأخير دون الإخلال بالمقرر
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="py-12 text-center opacity-60">
+                    <CheckCircle size={48} className="mx-auto mb-3 text-emerald-500" />
+                    <p className={`text-base font-black ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                      لم تسجل أي حصص مؤجلة خلال هذا الأسبوع 👍
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">سير بيداغوجي كامل بنسبة 100% لكافة الأفواج التربوية</p>
+                  </div>
+                )}
+              </GlassPanel>
+
+              {/* Section 3: قائمة الملاحظات المسجلة للحصص */}
+              <GlassPanel isLight={isLight} isBlack={isBlack} className="p-8 space-y-6">
+                <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-white/10">
+                  <div className="flex items-center gap-3">
+                    <MessageSquare size={22} className="text-blue-500" />
+                    <div>
+                      <h4 className={`text-lg font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                        سجل ملاحظات الحصص المسجلة للأفواج
+                      </h4>
+                      <p className="text-xs font-bold text-slate-400">
+                        الملاحظات الميدانية المسجلة لكل حصة حول انضباط التلاميذ، الوسائل، والظروف الجوية
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold px-3 py-1 rounded-full bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                    {weeklyReportData.notesList.length} ملاحظات مسجلة
+                  </span>
+                </div>
+
+                {weeklyReportData.notesList.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {weeklyReportData.notesList.map((slot, i) => (
+                      <div key={i} className={`p-4 rounded-2xl border ${
+                        isLight ? 'bg-slate-50 border-slate-200 text-slate-800' : 'bg-white/5 border-white/10 text-slate-200'
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-black text-blue-600 dark:text-blue-400">
+                            السنة {slot.gradeSection} • {slot.dayName} {slot.dateFormatted}
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-400">{slot.time}</span>
+                        </div>
+                        <p className="text-xs font-bold leading-relaxed">{slot.note}</p>
+                        <div className="mt-3 pt-2 border-t border-slate-200/60 dark:border-white/5 flex justify-end">
+                          <button
+                            onClick={() => handleOpenNoteModal({
+                              key: slot.key,
+                              date: slot.dateFormatted,
+                              gradeSection: slot.gradeSection,
+                              time: slot.time,
+                              topic: slot.topic
+                            })}
+                            className="text-[11px] font-black text-blue-500 hover:underline"
+                          >
+                            تعديل الملاحظة
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-12 text-center opacity-60">
+                    <ClipboardList size={48} className="mx-auto mb-3 text-slate-400" />
+                    <p className={`text-base font-black ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                      لا توجد ملاحظات مسجلة للحصص هذا الأسبوع
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      يمكنك تسجيل ملاحظات عند عرض الحصص اليومية بالنقر على زر «تدوين ملاحظة»
+                    </p>
+                  </div>
+                )}
+              </GlassPanel>
+
+              {/* Section 4: الملاحظة البيداغوجية والتوجيهات العامة للأسبوع */}
+              <GlassPanel isLight={isLight} isBlack={isBlack} className="p-8 space-y-4 border-t-4 border-t-amber-500">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <PenTool size={22} className="text-amber-500" />
+                    <h4 className={`text-lg font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                      ملاحظة الأسبوع العامة وتأشيرة الإشراف التربوي
+                    </h4>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setTempWeeklyNoteText(weeklyReportData.generalNote);
+                      setEditingWeeklyNoteModal(true);
+                    }}
+                    className="px-4 py-1.5 rounded-xl text-xs font-black bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-all cursor-pointer"
+                  >
+                    {weeklyReportData.generalNote ? 'تعديل النص' : 'كتابة ملاحظة الأسبوع'}
+                  </button>
+                </div>
+                <div className={`p-5 rounded-2xl border text-sm leading-relaxed font-bold ${
+                  isLight ? 'bg-amber-50/70 border-amber-200 text-amber-950' : 'bg-amber-950/20 border-amber-500/30 text-amber-200'
+                }`}>
+                  {weeklyReportData.generalNote || "لا توجد ملاحظة عامة مضافة لهذا الأسبوع. اضغط على الزر أعلاه لإضافة تقييم الأستاذ أو ملاحظات الإدارة والمفتشية التربوية."}
+                </div>
+              </GlassPanel>
+
+              {/* Section 5: معاينة ورقة التقرير الأسبوعي A4 المجهزة للطباعة */}
+              <div className="space-y-4 pt-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <Printer size={22} className="text-blue-500" />
+                    <div>
+                      <h4 className={`text-lg font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                        معاينة التقرير الأسبوعي الرسمي (A4)
+                      </h4>
+                      <p className="text-xs font-bold text-slate-400">
+                        نموذج مطابق لنسخة الطباعة والتصدير كـ PDF مع خانات التأشيرات والأختام
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={handlePrintWeeklyReport}
+                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-md shadow-blue-600/30 flex items-center gap-2 cursor-pointer"
+                    >
+                      <Printer size={15} />
+                      <span>طباعة / حفظ كـ PDF</span>
+                    </button>
+                    <button
+                      onClick={handleDownloadWeeklyReportFile}
+                      className={`px-4 py-2.5 rounded-xl text-xs font-black border flex items-center gap-2 cursor-pointer ${
+                        isLight ? 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50' : 'bg-white/5 border-white/10 text-white hover:bg-white/10'
+                      }`}
+                    >
+                      <Download size={15} />
+                      <span>تحميل ملف التقرير</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Printable container view */}
+                <div className={`p-4 md:p-8 rounded-[2.5rem] border overflow-x-auto flex justify-center ${
+                  isLight ? 'bg-slate-200/70 border-slate-300' : isBlack ? 'bg-[#09090b] border-zinc-900' : 'bg-slate-950/60 border-white/5'
+                }`}>
+                  <div 
+                    id="printable-weekly-report"
+                    className="bg-white text-black w-full max-w-[850px] p-8 md:p-10 shadow-2xl rounded-sm border border-slate-300 text-right flex flex-col justify-between"
+                    style={{ fontFamily: "'Cairo', sans-serif" }}
+                  >
+                    {/* Header */}
+                    <div className="border-b-2 border-black pb-3 mb-4">
+                      <div className="flex justify-between items-center text-xs font-bold mb-2">
+                        <div>الجمهورية الجزائرية الديمقراطية الشعبية</div>
+                        <div>وزارة التربية الوطنية</div>
+                      </div>
+                      <div className="flex justify-between items-center text-xs font-bold pb-2">
+                        <div>المؤسسة: <strong>{teacherInfo.school}</strong></div>
+                        <div className="text-base font-black text-center bg-black text-white px-6 py-1 rounded-full">
+                          تقرير المتابعة البيداغوجية الأسبوعي
+                        </div>
+                        <div>السنة الدراسية: <strong>{academicYear}</strong></div>
+                      </div>
+                      <div className="flex justify-between items-center text-xs font-bold pt-1 border-t border-slate-300">
+                        <div>الأستاذ: <strong>{teacherInfo.name || "الزايز محمد الطاهر"}</strong></div>
+                        <div>الأسبوع: من <strong>{weeklyReportData.sundayFormatted}</strong> إلى <strong>{weeklyReportData.thursdayFormatted}</strong></div>
+                        <div>الميدان: <strong>{currentTermConfig.shortFieldName}</strong></div>
+                      </div>
+                    </div>
+
+                    {/* Table 1: KPI summary */}
+                    <div className="mb-4">
+                      <div className="font-black text-xs border-r-4 border-blue-600 pr-2 mb-2">
+                        أولاً: الحصيلة الإحصائية العامة للأسبوع:
+                      </div>
+                      <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                        <div className="border border-black p-2 bg-slate-50">
+                          <div className="text-[10px] text-slate-600 font-bold">المبرمجة</div>
+                          <div className="text-base font-black">{weeklyReportData.totalSlots}</div>
+                        </div>
+                        <div className="border border-black p-2 bg-emerald-50">
+                          <div className="text-[10px] text-emerald-800 font-bold">المنجزة</div>
+                          <div className="text-base font-black text-emerald-700">{weeklyReportData.completedSlots}</div>
+                        </div>
+                        <div className="border border-black p-2 bg-rose-50">
+                          <div className="text-[10px] text-rose-800 font-bold">المؤجلة</div>
+                          <div className="text-base font-black text-rose-700">{weeklyReportData.postponedSlots}</div>
+                        </div>
+                        <div className="border border-black p-2 bg-blue-50">
+                          <div className="text-[10px] text-blue-800 font-bold">نسبة الإنجاز</div>
+                          <div className="text-base font-black text-blue-700">{weeklyReportData.rate}%</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Table 2: Level breakdown */}
+                    <div className="mb-4">
+                      <div className="font-black text-xs border-r-4 border-emerald-600 pr-2 mb-2">
+                        ثانياً: تفصيل الإنجاز حسب المستويات:
+                      </div>
+                      <table className="w-full border-collapse border border-black text-center text-[11px] leading-tight">
+                        <thead>
+                          <tr className="bg-slate-100 font-black border-b border-black">
+                            <th className="border border-black p-1.5">المستوى</th>
+                            <th className="border border-black p-1.5">الحصص المبرمجة</th>
+                            <th className="border border-black p-1.5">الحصص المنجزة</th>
+                            <th className="border border-black p-1.5">الحصص المؤجلة</th>
+                            <th className="border border-black p-1.5">النسبة</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {weeklyReportData.gradeStats.map((gs, i) => (
+                            <tr key={i} className="border-b border-black">
+                              <td className="border border-black p-1 font-bold">{gs.gradeLabel}</td>
+                              <td className="border border-black p-1">{gs.total}</td>
+                              <td className="border border-black p-1 font-bold text-emerald-700">{gs.completed}</td>
+                              <td className="border border-black p-1 text-rose-700">{gs.postponed > 0 ? gs.postponed : '—'}</td>
+                              <td className="border border-black p-1 font-black">{gs.rate}%</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Table 3: Postponed sessions if any */}
+                    {weeklyReportData.postponedList.length > 0 && (
+                      <div className="mb-4">
+                        <div className="font-black text-xs border-r-4 border-rose-600 pr-2 mb-2">
+                          ثالثاً: قائمة الحصص المؤجلة ومبررات التأجيل:
+                        </div>
+                        <table className="w-full border-collapse border border-black text-center text-[10.5px]">
+                          <thead>
+                            <tr className="bg-rose-50 font-black border-b border-black">
+                              <th className="border border-black p-1">اليوم/التاريخ</th>
+                              <th className="border border-black p-1">الفوج</th>
+                              <th className="border border-black p-1">الحصة والموضوع</th>
+                              <th className="border border-black p-1">سبب ومبرر التأجيل</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {weeklyReportData.postponedList.map((slot, i) => (
+                              <tr key={i} className="border-b border-black">
+                                <td className="border border-black p-1">{slot.dayName} {slot.dateFormatted}</td>
+                                <td className="border border-black p-1 font-bold">السنة {slot.gradeSection}</td>
+                                <td className="border border-black p-1 text-right">{slot.topic} — {slot.learnings}</td>
+                                <td className="border border-black p-1 font-bold text-rose-700">{slot.postponeReason || 'نصف يوم تعليمي'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* Table 4: Notes if any */}
+                    {weeklyReportData.notesList.length > 0 && (
+                      <div className="mb-4">
+                        <div className="font-black text-xs border-r-4 border-blue-600 pr-2 mb-2">
+                          رابعاً: ملاحظات الحصص المسجلة خلال الأسبوع:
+                        </div>
+                        <table className="w-full border-collapse border border-black text-right text-[10.5px]">
+                          <thead>
+                            <tr className="bg-slate-100 font-black border-b border-black">
+                              <th className="border border-black p-1 w-1/4 text-center">اليوم / الفوج</th>
+                              <th className="border border-black p-1 w-3/4">الملاحظة التربوية</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {weeklyReportData.notesList.map((slot, i) => (
+                              <tr key={i} className="border-b border-black">
+                                <td className="border border-black p-1 text-center font-bold">السنة {slot.gradeSection} ({slot.dayName})</td>
+                                <td className="border border-black p-1">{slot.note}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* General Note */}
+                    <div className="mb-6 p-2.5 border border-black text-xs bg-slate-50">
+                      <div className="font-black mb-1">خامساً: ملاحظة الأسبوع العامة:</div>
+                      <div className="font-bold">{weeklyReportData.generalNote || "سير تربوي منتظم وتنفيذ تام للبرنامج المسطر وفق التوزيع السنوي الرسمي."}</div>
+                    </div>
+
+                    {/* Signatures */}
+                    <div className="grid grid-cols-3 gap-6 text-center text-xs font-black pt-4 border-t-2 border-black">
+                      <div>
+                        <div className="mb-10">أستاذ المادة</div>
+                        <div>{showSignatureNames ? (teacherInfo.name || "الزايز محمد الطاهر") : "..................................."}</div>
+                      </div>
+                      <div>
+                        <div className="mb-10">السيد المدير</div>
+                        <div>{showSignatureNames ? (teacherInfo.manager || "السيد المدير") : "..................................."}</div>
+                      </div>
+                      <div>
+                        <div className="mb-10">السيد المفتش</div>
+                        <div>{showSignatureNames ? (teacherInfo.inspector || "السيد المفتش") : "..................................."}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : (
             /* Record View (جدول اليوم: Daily Lessons) */
             <div className="space-y-8">
@@ -2352,11 +3684,66 @@ export default function App() {
                   حصص اليوم: {getDayName(new Date(targetDate))} ({rows.length} حصص)
                 </h3>
                 <span className="text-xs font-bold text-slate-400 hidden sm:inline">
-                  انقر على أيقونة الحالة لتأجيل الحصة وتحديد السبب
+                  انقر على أيقونة الحالة لتأجيل الحصة أو زر الملاحظة للتدوين
                 </span>
               </div>
 
-              {rows.length > 0 ? rows.map((row, idx) => (
+              {/* Vacation Notice: Before Semester Start */}
+              {isBeforeSemesterStart ? (
+                <div className={`p-10 md:p-14 rounded-[2.5rem] border-2 text-center space-y-6 ${
+                  isLight 
+                    ? 'bg-gradient-to-br from-amber-50/90 via-orange-50/60 to-white border-amber-300 shadow-xl text-slate-800' 
+                    : isBlack 
+                      ? 'bg-zinc-900 border-amber-500/30 text-white' 
+                      : 'bg-amber-950/20 border-amber-500/30 text-white'
+                }`}>
+                  <div className="w-24 h-24 mx-auto rounded-3xl bg-amber-500/15 text-amber-500 flex items-center justify-center border-2 border-amber-500/30 shadow-xl shadow-amber-500/10">
+                    <Sun size={48} className="animate-spin-slow" />
+                  </div>
+                  <div className="max-w-2xl mx-auto space-y-3">
+                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 text-xs font-black border border-amber-500/30">
+                      <Sparkles size={14} /> فترة عطلة صيفية / مدرسية رسمية
+                    </div>
+                    <h3 className={`text-2xl sm:text-3xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                      التاريخ المحدد يسبق بداية الفصل الدراسي ({formatDate(new Date(targetDate))})
+                    </h3>
+                    <p className={`text-sm leading-relaxed font-bold ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
+                      لا يتم تسجيل أو كتابة أي حصص قبل تاريخ بداية الفصل المعتمد في الإعدادات: <strong className="text-blue-600 dark:text-blue-400 underline font-black">{semesterStart}</strong>.
+                    </p>
+                    <div className={`p-5 rounded-2xl border text-xs font-bold leading-relaxed mt-4 text-right ${
+                      isLight ? 'bg-white/90 border-amber-200 text-slate-700 shadow-sm' : 'bg-black/40 border-white/10 text-slate-300'
+                    }`}>
+                      <div className="flex items-center gap-2 font-black text-amber-600 dark:text-amber-400 mb-1">
+                        <Info size={16} />
+                        <span>التسلسل البيداغوجي المعتمد:</span>
+                      </div>
+                      <p>
+                        تبدأ الحصص رسمياً من أول يوم دراسي في الفصل بحصة 
+                        <strong className="text-amber-600 dark:text-amber-400"> «التعارف والتنظيم والاتصال»</strong>، تليها في الحصة الموالية 
+                        <strong className="text-blue-600 dark:text-blue-400"> «التقويم التشخيصي»</strong>، ثم تليها الوحدات التعليمية تباعاً بحسب التوزيع السنوي.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-4 pt-3">
+                    <button
+                      onClick={() => setTargetDate(semesterStart)}
+                      className="px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-sm transition-all shadow-xl shadow-blue-600/30 flex items-center gap-2.5 active:scale-95 cursor-pointer"
+                    >
+                      <Calendar size={18} />
+                      <span>الانتقال فوراً لتاريخ بداية الفصل ({semesterStart})</span>
+                    </button>
+                    <button
+                      onClick={() => setActiveView('settings')}
+                      className={`px-6 py-3.5 rounded-2xl font-black text-sm border transition-all flex items-center gap-2.5 cursor-pointer ${
+                        isLight ? 'bg-white border-slate-300 hover:bg-slate-50 text-slate-700' : 'bg-white/5 border-white/10 hover:bg-white/10 text-white'
+                      }`}
+                    >
+                      <SettingsIcon size={18} />
+                      <span>تعديل تاريخ بداية الفصل في الإعدادات</span>
+                    </button>
+                  </div>
+                </div>
+              ) : rows.length > 0 ? rows.map((row, idx) => (
                 <div 
                   key={idx} 
                   className={`border-2 rounded-[2.5rem] overflow-hidden transition-all duration-300 ${
@@ -2395,11 +3782,13 @@ export default function App() {
                         </div>
                       </div>
                       <div className={`w-40 sm:w-48 lg:w-52 py-2 rounded-xl text-center text-xs font-black uppercase tracking-tight border shadow-sm ${
-                        row.topic.includes("تقويم") 
-                          ? 'bg-amber-500/15 border-amber-500/30 text-amber-500' 
-                          : 'bg-indigo-500/15 border-indigo-500/30 text-indigo-400'
+                        row.topic.includes("تعارف")
+                          ? 'bg-purple-500/15 border-purple-500/30 text-purple-500'
+                          : row.topic.includes("تقويم") 
+                            ? 'bg-amber-500/15 border-amber-500/30 text-amber-500' 
+                            : 'bg-indigo-500/15 border-indigo-500/30 text-indigo-400'
                       }`}>
-                        {row.topic.includes("تقويم") ? "تقويم تشخيصي" : "وحدة تعليمية"}
+                        {row.topic.includes("تعارف") ? "تعارف وتنظيم" : row.topic.includes("تقويم") ? "تقويم تشخيصي" : "وحدة تعليمية"}
                       </div>
                     </div>
                     <div className="flex-1 text-right">
@@ -2433,6 +3822,36 @@ export default function App() {
                         </div>
                         <p className="text-md font-bold leading-relaxed">{row.content}</p>
                       </div>
+
+                      {/* Display Note Pill if present */}
+                      {row.note && (
+                        <div className={`mt-3 p-3.5 rounded-xl border flex items-center justify-between text-xs font-bold ${
+                          isLight ? 'bg-blue-50 border-blue-200 text-blue-900' : 'bg-blue-500/10 border-blue-500/30 text-blue-300'
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            <MessageSquare size={15} className="text-blue-500 shrink-0" />
+                            <span>ملاحظة الحصة: {row.note}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const slotKey = `${row.date}_${row.gradeSection.replace(' (', '_').replace(')', '')}_${row.time}`;
+                              handleOpenNoteModal({
+                                key: slotKey,
+                                date: row.date,
+                                gradeSection: row.gradeSection,
+                                time: row.time,
+                                topic: row.topic
+                              });
+                            }}
+                            className="text-[10px] underline text-blue-600 dark:text-blue-400 font-black hover:opacity-80"
+                          >
+                            تعديل
+                          </button>
+                        </div>
+                      )}
+
                       {row.isIncomplete && (
                         <div className="mt-5 flex flex-wrap gap-3">
                           <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-red-600 text-white rounded-xl shadow-xl shadow-red-600/20 text-xs font-black animate-pulse">
@@ -2457,6 +3876,36 @@ export default function App() {
                          {row.isIncomplete ? <XCircle size={28} /> : <CheckCircle size={28} />}
                          <span className="text-[10px] font-black uppercase tracking-wider">{row.isIncomplete ? 'مؤجلة' : 'تمت بنجاح'}</span>
                        </button>
+
+                       {/* Session Note button */}
+                       <button 
+                         type="button"
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           const slotKey = `${row.date}_${row.gradeSection.replace(' (', '_').replace(')', '')}_${row.time}`;
+                           handleOpenNoteModal({
+                             key: slotKey,
+                             date: row.date,
+                             gradeSection: row.gradeSection,
+                             time: row.time,
+                             topic: row.topic
+                           });
+                         }} 
+                         className={`p-4 sm:p-5 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center gap-2 ${
+                           row.note 
+                             ? 'bg-blue-600 border-blue-500 text-white shadow-xl shadow-blue-600/30' 
+                             : isLight
+                               ? 'bg-slate-50 border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-400 hover:bg-blue-50'
+                               : 'bg-white/5 border-white/10 text-slate-400 hover:text-blue-400 hover:border-blue-500/40'
+                         }`}
+                         title={row.note ? `الملاحظة: ${row.note}` : "إضافة ملاحظة على هذه الحصة"}
+                       >
+                         <MessageSquare size={28} />
+                         <span className="text-[10px] font-black uppercase tracking-wider whitespace-nowrap">
+                           {row.note ? 'ملاحظة' : 'تدوين'}
+                         </span>
+                       </button>
+
                        <button 
                          type="button"
                          onClick={(e) => {
@@ -2533,7 +3982,7 @@ export default function App() {
                                                   trimmed.startsWith('الموقف') || 
                                                   trimmed.startsWith('- المحطة') || 
                                                   trimmed.startsWith('وضعية مشكلة') || 
-                                                  trimmed.startsWith('مسلك فني') ||
+                                                  trimmed.startsWith('مسلك فني') || 
                                                   trimmed.includes('لعبة');
                                  return (
                                    <div 
@@ -2625,7 +4074,7 @@ export default function App() {
                       <button 
                         type="button"
                         onClick={() => { setSelectedRow(row); setViewPdf(false); }} 
-                        className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-sm uppercase flex items-center justify-center gap-3 transition-all shadow-xl shadow-blue-600/30 group active:scale-95"
+                        className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-sm uppercase flex items-center justify-center gap-3 transition-all shadow-xl shadow-blue-600/30 group active:scale-95 cursor-pointer"
                       >
                         فتح بطاقة إعداد الحصة الكاملة للمعايير <ExternalLink size={18} className="group-hover:translate-x-1 transition-transform" />
                       </button>
@@ -2649,24 +4098,28 @@ export default function App() {
       </main>
 
       {/* --- Mobile Tab Bar --- */}
-      <nav className={`md:hidden fixed bottom-0 left-0 w-full backdrop-blur-xl border-t px-4 py-4 flex justify-around items-center z-[100] shadow-2xl ${
+      <nav className={`md:hidden fixed bottom-0 left-0 w-full backdrop-blur-xl border-t px-2 py-3 flex justify-around items-center z-[100] shadow-2xl ${
         isLight ? 'bg-white/95 border-slate-200 text-slate-700' : isBlack ? 'bg-black/95 border-zinc-800 text-white' : 'bg-slate-950/95 border-white/10 text-white'
       }`}>
         <button onClick={() => setActiveView('record')} className={`flex flex-col items-center gap-1 transition-colors ${activeView === 'record' ? 'text-blue-500' : 'text-slate-500'}`}>
-          <LayoutDashboard size={22} />
-          <span className="text-[10px] font-black">الجدول</span>
+          <LayoutDashboard size={20} />
+          <span className="text-[9px] font-black">الجدول</span>
         </button>
         <button onClick={() => setActiveView('desktop')} className={`flex flex-col items-center gap-1 transition-colors ${activeView === 'desktop' ? 'text-blue-500' : 'text-slate-500'}`}>
-          <Monitor size={22} />
-          <span className="text-[10px] font-black">الكمبيوتر</span>
+          <Monitor size={20} />
+          <span className="text-[9px] font-black">الكمبيوتر</span>
+        </button>
+        <button onClick={() => setActiveView('weeklyReport')} className={`flex flex-col items-center gap-1 transition-colors ${activeView === 'weeklyReport' ? 'text-blue-500' : 'text-slate-500'}`}>
+          <FileCheck size={20} />
+          <span className="text-[9px] font-black">التقرير</span>
         </button>
         <button onClick={() => setActiveView('notes')} className={`flex flex-col items-center gap-1 transition-colors ${activeView === 'notes' ? 'text-blue-500' : 'text-slate-500'}`}>
-          <MessageSquare size={22} />
-          <span className="text-[10px] font-black">السجل</span>
+          <MessageSquare size={20} />
+          <span className="text-[9px] font-black">السجل</span>
         </button>
         <button onClick={() => setActiveView('settings')} className={`flex flex-col items-center gap-1 transition-colors ${activeView === 'settings' ? 'text-blue-500' : 'text-slate-500'}`}>
-          <SettingsIcon size={22} />
-          <span className="text-[10px] font-black">الإعدادات</span>
+          <SettingsIcon size={20} />
+          <span className="text-[9px] font-black">الإعدادات</span>
         </button>
       </nav>
 
@@ -2765,6 +4218,241 @@ export default function App() {
                   }`}
                 >
                   إغلاق النافذة
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- Weekly Report Print Modal --- */}
+      {showWeeklyPrintModal && (
+        <div className="fixed inset-0 z-[250] bg-black/75 backdrop-blur-md flex items-center justify-center p-4 md:p-6 text-right animate-in fade-in duration-300 no-print">
+          <div className={`border rounded-[2.5rem] w-full max-w-xl overflow-hidden shadow-2xl ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : isBlack ? 'bg-[#0e0e11] border-zinc-800 text-white' : 'bg-slate-900 border-white/10 text-white'
+          }`}>
+            <div className={`p-6 md:p-8 border-b flex justify-between items-center ${
+              isLight ? 'border-slate-200 bg-slate-50' : isBlack ? 'border-zinc-800 bg-zinc-900/60' : 'border-white/10 bg-white/5'
+            }`}>
+              <button 
+                onClick={() => setShowWeeklyPrintModal(false)} 
+                className={`p-2.5 rounded-xl transition-colors ${isLight ? 'hover:bg-slate-200 text-slate-500' : 'hover:bg-white/10 text-slate-400'}`}
+              >
+                <X size={22} />
+              </button>
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                  <Printer size={22} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black">طباعة التقرير الأسبوعي الشامل (A4 / PDF)</h3>
+                  <p className="text-[11px] text-slate-400 font-bold">جاهز للإرسال للطابعة أو الحفظ كملف PDF</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 md:p-8 space-y-6">
+              <div className={`p-4 rounded-2xl border flex items-center justify-between text-xs font-bold ${
+                isLight ? 'bg-blue-50/70 border-blue-200 text-blue-900' : 'bg-white/5 border-white/10 text-slate-300'
+              }`}>
+                <div>
+                  <span className="text-slate-500 block text-[10px]">الأسبوع المطبوع:</span>
+                  <span className="font-black text-sm">{weeklyReportData.sundayFormatted} — {weeklyReportData.thursdayFormatted}</span>
+                </div>
+                <div className="text-left" dir="ltr">
+                  <span className="text-slate-500 block text-[10px]">نسبة الإنجاز:</span>
+                  <span className="font-black text-sm text-emerald-600 dark:text-emerald-400">{weeklyReportData.rate}%</span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    try {
+                      window.print();
+                    } catch (e) {
+                      console.warn(e);
+                    }
+                  }}
+                  className="w-full py-4 px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-sm flex items-center justify-center gap-3 shadow-xl shadow-blue-600/30 transition-all active:scale-95 cursor-pointer"
+                >
+                  <Printer size={20} />
+                  <span>إطلاق أمر الطباعة الآن (Window Print)</span>
+                </button>
+
+                <button
+                  onClick={handleDownloadWeeklyReportFile}
+                  className={`w-full py-4 px-6 rounded-2xl font-black text-sm border flex items-center justify-center gap-3 transition-all cursor-pointer ${
+                    isLight 
+                      ? 'bg-slate-50 hover:bg-slate-100 border-slate-300 text-slate-800' 
+                      : 'bg-white/5 hover:bg-white/10 border-white/10 text-white'
+                  }`}
+                >
+                  <Download size={20} />
+                  <span>تحميل ملف التقرير الأسبوعي (HTML / A4) للطباعة بأي وقت</span>
+                </button>
+              </div>
+
+              <div className={`p-4 rounded-2xl border text-xs leading-relaxed space-y-2 ${
+                isLight ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-amber-500/10 border-amber-500/20 text-amber-300'
+              }`}>
+                <div className="font-black flex items-center gap-2">
+                  <Info size={15} />
+                  <span>إرشادات تصدير التقرير كملف PDF:</span>
+                </div>
+                <ul className="list-disc list-inside space-y-1 text-[11px] font-bold opacity-90">
+                  <li>في نافذة الطباعة، اختر الوجهة: <strong>حفظ بتنسيق PDF (Save as PDF)</strong>.</li>
+                  <li>تأكد من اختيار مقاس الورقة: <strong>A4</strong>، والاتجاه: <strong>عمودي (Portrait)</strong>.</li>
+                  <li>فعّل خيار <strong>رسومات الخلفية (Background graphics)</strong> لإظهار التنسيقات والجداول بوضوح.</li>
+                </ul>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  onClick={() => setShowWeeklyPrintModal(false)}
+                  className={`px-6 py-2.5 rounded-xl text-xs font-black transition-colors ${
+                    isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-white/5 hover:bg-white/10 text-white'
+                  }`}
+                >
+                  إغلاق النافذة
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- Session Note Modal (تدوين ملاحظة على الحصة) --- */}
+      {noteModalSlot && (
+        <div className="fixed inset-0 z-[260] bg-black/75 backdrop-blur-md flex items-center justify-center p-4 md:p-6 text-right animate-in fade-in duration-300 no-print">
+          <div className={`border rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : isBlack ? 'bg-[#0e0e11] border-zinc-800 text-white' : 'bg-slate-900 border-white/10 text-white'
+          }`}>
+            <div className={`p-6 md:p-8 border-b flex justify-between items-center ${
+              isLight ? 'border-slate-200 bg-slate-50' : isBlack ? 'border-zinc-800 bg-zinc-900/60' : 'border-white/10 bg-white/5'
+            }`}>
+              <button 
+                onClick={() => setNoteModalSlot(null)} 
+                className={`p-2.5 rounded-xl transition-colors ${isLight ? 'hover:bg-slate-200 text-slate-500' : 'hover:bg-white/10 text-slate-400'}`}
+              >
+                <X size={22} />
+              </button>
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                  <MessageSquare size={22} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black">تدوين ملاحظة على الحصة</h3>
+                  <p className="text-[11px] text-slate-400 font-bold">
+                    السنة {noteModalSlot.gradeSection} • {noteModalSlot.date} ({noteModalSlot.time})
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 md:p-8 space-y-6">
+              <div className="space-y-2">
+                <label className={`block text-xs font-black uppercase tracking-wider ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                  نص الملاحظة التربوية أو الميدانية:
+                </label>
+                <textarea
+                  value={tempNoteText}
+                  onChange={(e) => setTempNoteText(e.target.value)}
+                  placeholder="اكتب ملاحظاتك عن انضباط الفوج، جاهزية العتاد، الظروف الجوية، أو أي نقاط بيداغوجية خاصة..."
+                  rows={4}
+                  className={`w-full p-4 rounded-2xl border text-sm font-bold outline-none transition-all resize-none ${
+                    isLight
+                      ? 'bg-slate-50 border-slate-200 text-slate-800 focus:bg-white focus:border-blue-500'
+                      : isBlack
+                        ? 'bg-zinc-900 border-zinc-800 text-white focus:border-sky-500'
+                        : 'bg-white/5 border-white/10 text-white focus:border-blue-400'
+                  }`}
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleSaveSessionNote}
+                  className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-sm shadow-xl shadow-blue-600/30 transition-all active:scale-95 cursor-pointer"
+                >
+                  حفظ الملاحظة
+                </button>
+                <button
+                  onClick={() => setNoteModalSlot(null)}
+                  className={`py-4 px-6 rounded-2xl font-black text-sm border transition-colors cursor-pointer ${
+                    isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200' : 'bg-white/5 hover:bg-white/10 text-white border-white/10'
+                  }`}
+                >
+                  إلغاء
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- Editing Weekly Note Modal (تحرير ملاحظة الأسبوع العامة) --- */}
+      {editingWeeklyNoteModal && (
+        <div className="fixed inset-0 z-[260] bg-black/75 backdrop-blur-md flex items-center justify-center p-4 md:p-6 text-right animate-in fade-in duration-300 no-print">
+          <div className={`border rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : isBlack ? 'bg-[#0e0e11] border-zinc-800 text-white' : 'bg-slate-900 border-white/10 text-white'
+          }`}>
+            <div className={`p-6 md:p-8 border-b flex justify-between items-center ${
+              isLight ? 'border-slate-200 bg-slate-50' : isBlack ? 'border-zinc-800 bg-zinc-900/60' : 'border-white/10 bg-white/5'
+            }`}>
+              <button 
+                onClick={() => setEditingWeeklyNoteModal(false)} 
+                className={`p-2.5 rounded-xl transition-colors ${isLight ? 'hover:bg-slate-200 text-slate-500' : 'hover:bg-white/10 text-slate-400'}`}
+              >
+                <X size={22} />
+              </button>
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                  <PenTool size={22} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black">تحرير ملاحظة الأسبوع العامة</h3>
+                  <p className="text-[11px] text-slate-400 font-bold">
+                    للأسبوع: {weeklyReportData.sundayFormatted} — {weeklyReportData.thursdayFormatted}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 md:p-8 space-y-6">
+              <div className="space-y-2">
+                <label className={`block text-xs font-black uppercase tracking-wider ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                  نص الملاحظة العامة (تظهر في التقرير الأسبوعي الرسمي A4):
+                </label>
+                <textarea
+                  value={tempWeeklyNoteText}
+                  onChange={(e) => setTempWeeklyNoteText(e.target.value)}
+                  placeholder="مثال: تم إنجاز البرنامج المسطر بنجاح، مشاركة ممتازة للتلاميذ، تم استدراك حصة سابقة..."
+                  rows={5}
+                  className={`w-full p-4 rounded-2xl border text-sm font-bold outline-none transition-all resize-none ${
+                    isLight
+                      ? 'bg-slate-50 border-slate-200 text-slate-800 focus:bg-white focus:border-amber-500'
+                      : isBlack
+                        ? 'bg-zinc-900 border-zinc-800 text-white focus:border-amber-500'
+                        : 'bg-white/5 border-white/10 text-white focus:border-amber-400'
+                  }`}
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleSaveWeeklyNote}
+                  className="flex-1 py-4 bg-amber-600 hover:bg-amber-700 text-white rounded-2xl font-black text-sm shadow-xl shadow-amber-600/30 transition-all active:scale-95 cursor-pointer"
+                >
+                  حفظ ملاحظة الأسبوع
+                </button>
+                <button
+                  onClick={() => setEditingWeeklyNoteModal(false)}
+                  className={`py-4 px-6 rounded-2xl font-black text-sm border transition-colors cursor-pointer ${
+                    isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200' : 'bg-white/5 hover:bg-white/10 text-white border-white/10'
+                  }`}
+                >
+                  إلغاء
                 </button>
               </div>
             </div>

@@ -59,3 +59,19 @@ export interface PostponedSession {
   reason: string;
   reasonType: PostponeReason;
 }
+
+export interface SessionNote {
+  key: string; // date_grade_section_time
+  date: string;
+  gradeSection: string;
+  time: string;
+  note: string;
+  createdAt?: string;
+}
+
+export interface WeeklyNote {
+  weekKey: string; // sundayFormatted_thursdayFormatted
+  text: string;
+  updatedAt?: string;
+}
+
