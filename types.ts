@@ -22,6 +22,8 @@ export interface DailyRecordRow {
   day: string;
   time: string;
   gradeSection: string;
+  grade?: string;
+  section?: string;
   field: string;
   topic: string; // تم الإضافة هنا: نوع الحصة/الموضوع
   terminalCompetency?: string; // الكفاءة الختامية

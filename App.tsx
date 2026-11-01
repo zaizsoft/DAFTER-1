@@ -57,7 +57,7 @@ import {
 } from 'lucide-react';
 import { DailyRecordRow, TeacherInfo, WeeklySlot, PostponeReason, PostponedSession, TermKey, SessionNote, WeeklyNote } from './types';
 import { WEEKLY_SCHEDULE, FIELD_NAME, ALL_LESSONS, TERMS, DEFAULT_TERM, getTerminalCompetency } from './constants';
-import { formatDate, getDayName, getLessonForSlot, getTimeSortValue } from './utils';
+import { formatDate, getDayName, getLessonForSlot, getTimeSortValue, formatTimeTo24Hour, formatGroupForDailySheet } from './utils';
 
 // --- Custom App Icon Component (Signature Style) ---
 const AppIcon = ({ size = 24, className = "" }: { size?: number, className?: string }) => (
@@ -711,6 +711,8 @@ export default function App() {
         day: getDayName(dateObj),
         time: slot.time,
         gradeSection: `${slot.grade} (${slot.section})`,
+        grade: slot.grade,
+        section: slot.section,
         field: currentFieldName,
         topic: lesson.topic,
         terminalCompetency: getTerminalCompetency(slot.grade, selectedTerm),
@@ -1060,8 +1062,8 @@ export default function App() {
       const rowsHtml = rows.map(r => `
         <tr style="border-bottom: 1px solid #000; min-height: 34px; ${r.isIncomplete ? 'background-color: #fee2e2;' : ''}">
           <td style="border: 1px solid #000; padding: 4px 6px; font-weight: bold; text-align: center; font-size: 11px;">${r.date}</td>
-          <td style="border: 1px solid #000; padding: 4px 6px; font-weight: bold; text-align: center; font-size: 11px;">السنة ${r.gradeSection}</td>
-          <td style="border: 1px solid #000; padding: 4px 6px; font-weight: bold; text-align: center; direction: ltr; font-size: 11px;">${r.time}</td>
+          <td style="border: 1px solid #000; padding: 4px 6px; font-weight: 900; text-align: center; font-size: 13px;">${formatGroupForDailySheet(r)}</td>
+          <td style="border: 1px solid #000; padding: 4px 6px; font-weight: 900; text-align: center; direction: ltr; font-size: 12px; font-family: 'Dubai', sans-serif;">${formatTimeTo24Hour(r.time)}</td>
           <td style="border: 1px solid #000; padding: 4px 8px; font-weight: bold; text-align: right; font-size: 11px; line-height: 1.3;">${r.terminalCompetency || ''}</td>
           <td style="border: 1px solid #000; padding: 4px 8px; text-align: right; font-size: 11px; line-height: 1.3;">
             ${r.topic ? `<strong style="display:block; margin-bottom:2px; font-weight:900; color:#000;">${r.topic}</strong>` : ''}
@@ -2674,8 +2676,8 @@ export default function App() {
                                 {rows.map((row, idx) => (
                                   <tr key={`session-${idx}`} className={`border-b border-black min-h-[34px] ${row.isIncomplete ? 'bg-red-50/70' : ''}`}>
                                     <td className="border border-black py-2 px-1 font-bold text-center text-[11px] md:text-xs">{row.date}</td>
-                                    <td className="border border-black py-2 px-1 font-bold text-center text-[11px] md:text-xs">السنة {row.gradeSection}</td>
-                                    <td className="border border-black py-2 px-1 font-dubai font-black text-xs md:text-sm text-center" dir="ltr" style={{ fontFamily: "'Dubai', sans-serif" }}>{row.time}</td>
+                                    <td className="border border-black py-2 px-1 font-black text-center text-xs md:text-sm">{formatGroupForDailySheet(row)}</td>
+                                    <td className="border border-black py-2 px-1 font-dubai font-black text-xs md:text-sm text-center" dir="ltr" style={{ fontFamily: "'Dubai', sans-serif" }}>{formatTimeTo24Hour(row.time)}</td>
                                     <td className="border border-black py-2 px-2 font-bold text-right leading-snug text-[10.5px] md:text-[11.5px]">{row.terminalCompetency}</td>
                                     <td className="border border-black py-2 px-2 text-right leading-snug text-[10.5px] md:text-[11.5px]">
                                       {row.topic && <div className="font-black text-black mb-0.5">{row.topic}</div>}
@@ -3778,7 +3780,7 @@ export default function App() {
                           dir="ltr"
                           style={{ fontFamily: "'Dubai', sans-serif" }}
                         >
-                          {row.time}
+                          {formatTimeTo24Hour(row.time)}
                         </div>
                       </div>
                       <div className={`w-40 sm:w-48 lg:w-52 py-2 rounded-xl text-center text-xs font-black uppercase tracking-tight border shadow-sm ${

@@ -26,6 +26,72 @@ export const getTimeSortValue = (timeStr: string): number => {
 };
 
 /**
+ * تحويل التوقيت إلى نظام الـ 24 ساعة المعتمد رسمياً في الجداول المدرسية
+ * مثل: "12:00 - 01:00" -> "12:00 - 13:00"
+ * "01:00 - 02:00" -> "13:00 - 14:00"
+ * "02:00 - 03:00" -> "14:00 - 15:00"
+ * "04:00 - 05:00" -> "16:00 - 17:00"
+ */
+export const formatTimeTo24Hour = (timeStr: string): string => {
+  if (!timeStr) return '';
+  const parts = timeStr.split('-').map(p => p.trim());
+  if (parts.length === 0) return timeStr;
+
+  const convertSingleTime = (t: string): string => {
+    const match = t.match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return t;
+    let hour = parseInt(match[1], 10);
+    const min = match[2];
+    
+    // في النظام المدرسي بالجزائر، الساعات المسائية (01:00 حتى 06:00) تمثل (13:00 حتى 18:00)
+    if (hour >= 1 && hour <= 6) {
+      hour += 12;
+    }
+    return `${hour.toString().padStart(2, '0')}:${min}`;
+  };
+
+  if (parts.length === 1) {
+    return convertSingleTime(parts[0]);
+  }
+  return `${convertSingleTime(parts[0])} - ${convertSingleTime(parts[1])}`;
+};
+
+/**
+ * تنسيق خانة الفوج في الدفتر اليومي
+ * تُعرض في الخانة صيغة مثل "4 ( أ )" أو "2 ( ب )" بدلاً من كتابة "السنة 4 (أ)"
+ */
+export const formatGroupForDailySheet = (row: { gradeSection?: string; section?: string; grade?: string }): string => {
+  const grade = row.grade;
+  const sec = row.section;
+
+  // إذا توفر المستوى والقسم مباشرة
+  if (grade && sec) {
+    const cleanSection = sec === '1' ? 'أ' : sec === '2' ? 'ب' : sec.trim();
+    return `${grade} ( ${cleanSection} )`;
+  }
+
+  const str = (row.gradeSection || '').replace(/^السنة\s*/, '').trim();
+  if (str) {
+    // مطابقة صيغ مثل "4 (أ)" أو "4 ( أ )" أو "4(أ)"
+    const match = str.match(/^([1-5])\s*\(\s*(.*?)\s*\)$/);
+    if (match) {
+      let s = match[2].trim();
+      if (s === '1') s = 'أ';
+      if (s === '2') s = 'ب';
+      return `${match[1]} ( ${s} )`;
+    }
+    if (str.includes('أولى') || str.includes('الاولى')) return `1 ( ${str.includes('ب') ? 'ب' : 'أ'} )`;
+    if (str.includes('ثانية') || str.includes('الثانية')) return `2 ( ${str.includes('ب') ? 'ب' : 'أ'} )`;
+    if (str.includes('ثالثة') || str.includes('الثالثة')) return `3 ( ${str.includes('ب') ? 'ب' : 'أ'} )`;
+    if (str.includes('رابعة') || str.includes('الرابعة')) return `4 ( ${str.includes('ب') ? 'ب' : 'أ'} )`;
+    if (str.includes('خامسة') || str.includes('الخامسة')) return `5 ( ${str.includes('ب') ? 'ب' : 'أ'} )`;
+    return str;
+  }
+
+  return '4 ( أ )';
+};
+
+/**
  * تحديد الدرس المناسب للحصة مع مراعاة الفصل/الميدان، الحصص المؤجلة، وحذف حصص الإدماج التعويضية
  */
 export const getLessonForSlot = (
