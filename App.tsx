@@ -53,7 +53,10 @@ import {
   Edit3,
   Save,
   Plus,
-  Trash2
+  Trash2,
+  Maximize2,
+  Minimize2,
+  ArrowRight
 } from 'lucide-react';
 import { DailyRecordRow, TeacherInfo, WeeklySlot, PostponeReason, PostponedSession, TermKey, SessionNote, WeeklyNote } from './types';
 import { WEEKLY_SCHEDULE, FIELD_NAME, ALL_LESSONS, TERMS, DEFAULT_TERM, getTerminalCompetency } from './constants';
@@ -522,6 +525,8 @@ export default function App() {
   const [activeView, setActiveView] = useState<'record' | 'desktop' | 'settings' | 'distribution' | 'notes' | 'weeklyReport'>('record');
   const [desktopSubView, setDesktopSubView] = useState<'sheet' | 'dashboard'>('sheet');
   const [sheetZoom, setSheetZoom] = useState<number>(100);
+  const [isSheetFullscreen, setIsSheetFullscreen] = useState<boolean>(false);
+  const [fullscreenZoom, setFullscreenZoom] = useState<number>(115);
   const [weeklySheetZoom, setWeeklySheetZoom] = useState<number>(100);
   const [showSignatureNames, setShowSignatureNames] = useState<boolean>(true);
   const [academicYear, setAcademicYear] = useState<string>("2025 / 2026");
@@ -642,6 +647,24 @@ export default function App() {
     }, 2000);
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isSheetFullscreen) {
+        setIsSheetFullscreen(false);
+      }
+    };
+    if (isSheetFullscreen) {
+      document.body.style.overflow = 'hidden';
+      window.addEventListener('keydown', handleKeyDown);
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isSheetFullscreen]);
 
   useEffect(() => {
     localStorage.setItem('selected_term', selectedTerm);
@@ -2613,6 +2636,16 @@ export default function App() {
                         <span>تحميل ملف A4</span>
                       </button>
 
+                      {/* Fullscreen Button */}
+                      <button
+                        onClick={() => setIsSheetFullscreen(true)}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-emerald-600/30 active:scale-95 cursor-pointer"
+                        title="عرض ورقة الدفتر اليومي على الشاشة كاملة لتكبيرها وقراءتها بوضوح"
+                      >
+                        <Maximize2 size={16} />
+                        <span>عرض ملء الشاشة</span>
+                      </button>
+
                       {/* Print Button - Calls handlePrintSheet to trigger print and open assistant */}
                       <button
                         onClick={handlePrintSheet}
@@ -2637,6 +2670,18 @@ export default function App() {
                         className="bg-white text-black w-full max-w-[850px] min-h-[1180px] p-8 md:p-12 shadow-2xl rounded-sm border border-slate-300 relative text-right flex flex-col justify-between"
                         style={{ fontFamily: "'Cairo', sans-serif" }}
                       >
+                        {/* Quick Fullscreen Button directly on the white sheet as requested */}
+                        <div className="absolute top-4 left-4 no-print z-10">
+                          <button
+                            onClick={() => setIsSheetFullscreen(true)}
+                            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-black shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer"
+                            title="عرض الورقة على الشاشة كاملة لتكبيرها وقراءتها بوضوح تام"
+                          >
+                            <Maximize2 size={14} />
+                            <span>عرض على الشاشة كاملة</span>
+                          </button>
+                        </div>
+
                         {/* Sheet Header */}
                         <div>
                           <div className="flex items-center justify-between pb-3">
@@ -4124,6 +4169,213 @@ export default function App() {
           <span className="text-[9px] font-black">الإعدادات</span>
         </button>
       </nav>
+
+      {/* --- Fullscreen Daily Logbook Sheet Viewer (عرض ورقة الدفتر اليومي ملء الشاشة) --- */}
+      {isSheetFullscreen && (
+        <div className="fixed inset-0 z-[220] bg-slate-950/95 backdrop-blur-md flex flex-col no-print animate-in fade-in duration-200">
+          {/* Top Sticky Header */}
+          <header className="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-white/10 px-4 md:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4 shadow-xl text-right">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shrink-0">
+                <Maximize2 size={22} />
+              </div>
+              <div>
+                <h3 className="text-sm md:text-base font-black text-white flex items-center gap-2">
+                  <span>ورقة الدفتر اليومي — وضع ملء الشاشة المكبر</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                    معاينة A4 واضحة
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-400 font-bold">
+                  {getDayName(new Date(targetDate))} — {formatDate(new Date(targetDate))} ({rows.length} حصص مبرمجة)
+                </p>
+              </div>
+            </div>
+
+            {/* Actions & Return to App Button */}
+            <div className="flex flex-wrap items-center gap-2 md:gap-3">
+              {/* Zoom Controls */}
+              <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-800 border border-white/10">
+                <button
+                  onClick={() => setFullscreenZoom(prev => Math.max(70, prev - 10))}
+                  className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+                  title="تصغير الورقة"
+                >
+                  <ZoomOut size={16} />
+                </button>
+                <span className="text-xs font-mono font-black text-white px-2">
+                  {fullscreenZoom}%
+                </span>
+                <button
+                  onClick={() => setFullscreenZoom(prev => Math.min(160, prev + 10))}
+                  className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
+                  title="تكبير الورقة"
+                >
+                  <ZoomIn size={16} />
+                </button>
+                <button
+                  onClick={() => setFullscreenZoom(115)}
+                  className="px-2 py-1 text-[10px] font-black text-slate-300 hover:text-white hover:bg-white/10 rounded transition-colors"
+                  title="الحجم الافتراضي"
+                >
+                  افتراضي
+                </button>
+              </div>
+
+              {/* Download print file */}
+              <button
+                onClick={handleDownloadPrintFile}
+                className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-black border border-white/10 transition-all active:scale-95 cursor-pointer"
+                title="تحميل ملف الورقة A4"
+              >
+                <Download size={15} />
+                <span className="hidden sm:inline">تحميل A4</span>
+              </button>
+
+              {/* Print Button */}
+              <button
+                onClick={handlePrintSheet}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-lg shadow-blue-600/30 transition-all active:scale-95 cursor-pointer"
+                title="طباعة الدفتر اليومي"
+              >
+                <Printer size={15} />
+                <span className="hidden sm:inline">طباعة الكراس</span>
+              </button>
+
+              {/* Return to App Button - Requested by user */}
+              <button
+                onClick={() => setIsSheetFullscreen(false)}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white rounded-xl text-xs md:text-sm font-black shadow-lg shadow-red-600/30 transition-all active:scale-95 cursor-pointer"
+                title="العودة إلى صفحة التطبيق (أو اضغط Esc)"
+              >
+                <ArrowRight size={17} />
+                <span>العودة إلى التطبيق</span>
+                <span className="hidden md:inline-block text-[10px] bg-black/30 border border-white/20 px-1.5 py-0.5 rounded font-mono">
+                  Esc
+                </span>
+              </button>
+            </div>
+          </header>
+
+          {/* Scrollable Center Canvas */}
+          <div className="flex-1 overflow-y-auto overflow-x-auto p-4 md:p-10 flex justify-center items-start">
+            <div
+              style={{
+                transform: `scale(${fullscreenZoom / 100})`,
+                transformOrigin: 'top center',
+                marginBottom: `${Math.max(60, (fullscreenZoom - 100) * 12)}px`
+              }}
+              className="transition-transform duration-150 w-full flex justify-center"
+            >
+              {/* Pristine Large White Sheet */}
+              <div
+                className="bg-white text-black w-full max-w-[960px] min-h-[1250px] p-8 md:p-14 shadow-2xl rounded-sm border-2 border-slate-300 relative text-right flex flex-col justify-between"
+                style={{ fontFamily: "'Cairo', sans-serif" }}
+              >
+                {/* Secondary Quick Return Button right on top corner of the paper */}
+                <div className="absolute top-4 left-4 no-print z-10">
+                  <button
+                    onClick={() => setIsSheetFullscreen(false)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-black shadow-md transition-all active:scale-95 cursor-pointer"
+                    title="العودة إلى صفحة التطبيق"
+                  >
+                    <ArrowRight size={14} />
+                    <span>العودة للتطبيق</span>
+                  </button>
+                </div>
+
+                {/* Sheet Header */}
+                <div>
+                  <div className="flex items-center justify-between pb-4">
+                    <div className="text-right">
+                      <span className="text-base md:text-lg font-black text-black">
+                        المؤسسة : {teacherInfo.school}
+                      </span>
+                    </div>
+                    <div className="text-center">
+                      <div className="bg-black text-white px-10 py-2.5 rounded-full font-black text-xl md:text-2xl tracking-wider shadow-md inline-block">
+                        الدفتر اليومي
+                      </div>
+                    </div>
+                    <div className="text-left" dir="ltr">
+                      <span className="text-base md:text-lg font-black text-black">
+                        السنة الدراسية : {academicYear}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Sheet Table */}
+                  <div className="mt-5 overflow-hidden">
+                    <table className="w-full border-collapse border-2 border-black text-center text-[13px] md:text-[14px] leading-snug text-black">
+                      <thead>
+                        <tr className="border-b-2 border-black bg-slate-100 font-black">
+                          <th className="border border-black py-3 px-1.5 w-[10%] text-black font-black">التاريخ</th>
+                          <th className="border border-black py-3 px-1.5 w-[9%] text-black font-black">الفوج</th>
+                          <th className="border border-black py-3 px-1.5 w-[11%] text-black font-black">الساعة</th>
+                          <th className="border border-black py-3 px-2 w-[22%] text-black font-black">الكفاءة الختامية</th>
+                          <th className="border border-black py-3 px-2 w-[22%] text-black font-black">التعلمات ـ الأهداف</th>
+                          <th className="border border-black py-3 px-2 w-[17%] text-black font-black">محتوى الانجاز</th>
+                          <th className="border border-black py-3 px-1.5 w-[9%] text-black font-black">الملاحظة</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((row, idx) => (
+                          <tr key={`fs-row-${idx}`} className={`border-b border-black min-h-[38px] ${row.isIncomplete ? 'bg-red-50/70' : ''}`}>
+                            <td className="border border-black py-2.5 px-1 font-bold text-center text-xs md:text-sm">{row.date}</td>
+                            <td className="border border-black py-2.5 px-1 font-black text-center text-xs md:text-sm">{formatGroupForDailySheet(row)}</td>
+                            <td className="border border-black py-2.5 px-1 font-dubai font-black text-xs md:text-base text-center" dir="ltr" style={{ fontFamily: "'Dubai', sans-serif" }}>{formatTimeTo24Hour(row.time)}</td>
+                            <td className="border border-black py-2.5 px-2 font-bold text-right leading-snug text-[11px] md:text-[12.5px]">{row.terminalCompetency}</td>
+                            <td className="border border-black py-2.5 px-2 text-right leading-snug text-[11px] md:text-[12.5px]">
+                              {row.topic && <div className="font-black text-black mb-0.5">{row.topic}</div>}
+                              <div className="font-semibold text-neutral-800">{row.learnings}</div>
+                            </td>
+                            <td className="border border-black py-2.5 px-2 font-bold text-right leading-snug text-[11px] md:text-[12.5px]">{row.content}</td>
+                            <td className="border border-black py-2.5 px-1 text-xs font-bold text-center">
+                              {row.isIncomplete ? (
+                                <span className="text-red-700 font-black">
+                                  مؤجلة ({postponedSessions.find(p => p.date === row.date && p.gradeSection === row.gradeSection)?.reason || 'نصف يوم تعليمي'})
+                                </span>
+                              ) : (
+                                ''
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+
+                        {/* Filler rows */}
+                        {Array.from({ length: Math.max(0, 24 - rows.length) }).map((_, fIdx) => (
+                          <tr key={`fs-filler-${fIdx}`} className="border-b border-black h-[36px]">
+                            <td className="border border-black py-2 px-1">&nbsp;</td>
+                            <td className="border border-black py-2 px-1">&nbsp;</td>
+                            <td className="border border-black py-2 px-1">&nbsp;</td>
+                            <td className="border border-black py-2 px-2">&nbsp;</td>
+                            <td className="border border-black py-2 px-2">&nbsp;</td>
+                            <td className="border border-black py-2 px-2">&nbsp;</td>
+                            <td className="border border-black py-2 px-1">&nbsp;</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Signatures */}
+                <div className="pt-10 pb-4 flex justify-between items-center text-sm md:text-base font-black text-black">
+                  <div className="text-right">
+                    الأستاذ: {showSignatureNames ? (teacherInfo.name || "الزايز محمد الطاهر") : "............................."}
+                  </div>
+                  <div className="text-center">
+                    المفتش: {showSignatureNames ? (teacherInfo.inspector || "السيد المفتش") : "............................."}
+                  </div>
+                  <div className="text-left">
+                    المدير: {showSignatureNames ? (teacherInfo.manager || "السيد المدير") : "............................."}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --- Print Assistant & Options Modal --- */}
       {showPrintModal && (
