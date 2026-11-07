@@ -1,6 +1,6 @@
 
 import { WEEKLY_SCHEDULE, ALL_LESSONS, ALL_LESSONS_BY_TERM } from './constants';
-import { WeeklySlot, Lesson, TermKey } from './types';
+import { WeeklySlot, Lesson, TermKey, PostponedSession } from './types';
 
 export const formatDate = (date: Date): string => {
   return date.toLocaleDateString('ar-DZ', { year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -93,13 +93,17 @@ export const formatGroupForDailySheet = (row: { gradeSection?: string; section?:
 
 /**
  * تحديد الدرس المناسب للحصة مع مراعاة الفصل/الميدان، الحصص المؤجلة، وحذف حصص الإدماج التعويضية
+ * قاعدة استثنائية للعطل المدرسية:
+ * عند تأجيل الحصة بسبب "العطلة"، تؤجل الحصص دون حذف الحصص الإدماجية الأولى أو الثانية،
+ * وتستأنف الحصص بما فيها حصص الإدماج فور انتهاء العطلة.
  */
 export const getLessonForSlot = (
   slot: WeeklySlot,
   startDate: Date,
   targetDate: Date,
   meetingsState: Record<string, 'completed' | 'incomplete'>,
-  termKey: TermKey = '1'
+  termKey: TermKey = '1',
+  postponedSessions?: PostponedSession[]
 ): { lesson: Lesson, isIncomplete: boolean } => {
   const lessonsForTerm = ALL_LESSONS_BY_TERM[termKey] || ALL_LESSONS_BY_TERM['1'];
   const originalLessons = lessonsForTerm[slot.grade] || ALL_LESSONS[slot.grade] || [];
@@ -147,17 +151,30 @@ export const getLessonForSlot = (
     return { lesson: originalLessons[0], isIncomplete: false };
   }
 
-  // 2. حساب عدد التأجيلات "التي حدثت قبل" هذا اللقاء
-  let incompletesBefore = 0;
+  // 2. حساب عدد التأجيلات "التي حدثت قبل" هذا اللقاء:
+  // التفريق بين التأجيلات العادية وتأجيلات العطل المدرسية.
+  // في العطل المدرسية: يتم تأجيل الحصة دون حذف الحصص الإدماجية الأولى أو الثانية.
+  let regularIncompletesBefore = 0;
+  let holidayIncompletesBefore = 0;
+
   for (let i = 0; i < currentMeetingIdx; i++) {
     const m = classMeetings[i];
     const key = `${m.date}_${m.slot.grade}_${m.slot.section}_${m.slot.time}`;
     if (meetingsState[key] === 'incomplete') {
-      incompletesBefore++;
+      const isHoliday = postponedSessions?.some(
+        ps => (ps.key === key || (ps.date === m.date && ps.gradeSection.includes(m.slot.grade) && ps.gradeSection.includes(m.slot.section))) && ps.reasonType === 'holiday'
+      );
+      if (isHoliday) {
+        holidayIncompletesBefore++;
+      } else {
+        regularIncompletesBefore++;
+      }
     }
   }
 
-  // 3. تعديل قائمة الدروس المتاحة (حذف الإدماجية عند وجود تأخير)
+  // 3. تعديل قائمة الدروس المتاحة:
+  // حذف الحصة الإدماجية عند وجود تأخير عادي فقط (نصف يوم، تحكيم، منافسة، أخرى).
+  // أما سبب "العطلة" فليس له أي علاقة بالحذف ولا يحذف أي حصة إدماجية.
   const modifiedLessons = [...originalLessons];
   
   // البحث عن فهارس الدروس الإدماجية في المصفوفة الأصلية
@@ -165,20 +182,21 @@ export const getLessonForSlot = (
     .map((l, idx) => (l.topic.includes('إدماجية') ? idx : -1))
     .filter(idx => idx !== -1);
 
-  // إذا حدث تأجيل واحد أو أكثر، نحذف أول حصة إدماجية مبرمجة
-  if (incompletesBefore >= 1 && optionalIndices.length > 0) {
+  // إذا حدث تأجيل عادي واحد أو أكثر (وليس عطلة!)، نحذف أول حصة إدماجية مبرمجة
+  if (regularIncompletesBefore >= 1 && optionalIndices.length > 0) {
     modifiedLessons.splice(optionalIndices[0], 1);
   }
-  // إذا حدث تأجيلان أو أكثر، نحذف الحصة الإدماجية الثانية
-  if (incompletesBefore >= 2 && optionalIndices.length > 1) {
-    // الفهرس الثاني ينقص بـ 1 لأننا حذفنا عنصراً قبله
+  // إذا حدث تأجيلان عاديان أو أكثر (وليس عطلة!)، نحذف الحصة الإدماجية الثانية
+  if (regularIncompletesBefore >= 2 && optionalIndices.length > 1) {
     const secondAdj = optionalIndices[1] - 1;
     if (modifiedLessons[secondAdj]) modifiedLessons.splice(secondAdj, 1);
   }
 
   // 4. تحديد الدرس الحالي
-  // الدرس الحالي = (رقم اللقاء - عدد التأجيلات السابقة)
-  const targetLessonIdx = Math.max(0, currentMeetingIdx - incompletesBefore);
+  // الدرس الحالي يتأخر بمقدار إجمالي التأجيلات (العادية + العطل)، بحيث تستأنف الدروس بعد العطلة
+  // ولكن قائمة modifiedLessons تحتفظ بجميع حصص الإدماج عند العطلة!
+  const totalIncompletesBefore = regularIncompletesBefore + holidayIncompletesBefore;
+  const targetLessonIdx = Math.max(0, currentMeetingIdx - totalIncompletesBefore);
   const finalLesson = modifiedLessons[targetLessonIdx % modifiedLessons.length] || originalLessons[0];
 
   // التحقق مما إذا كانت الحصة الحالية "نفسها" قد وسمت بأنها غير مكتملة

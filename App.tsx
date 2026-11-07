@@ -56,7 +56,9 @@ import {
   Trash2,
   Maximize2,
   Minimize2,
-  ArrowRight
+  ArrowRight,
+  RotateCcw,
+  Palmtree
 } from 'lucide-react';
 import { DailyRecordRow, TeacherInfo, WeeklySlot, PostponeReason, PostponedSession, TermKey, SessionNote, WeeklyNote } from './types';
 import { WEEKLY_SCHEDULE, FIELD_NAME, ALL_LESSONS, TERMS, DEFAULT_TERM, getTerminalCompetency } from './constants';
@@ -180,8 +182,16 @@ const REASONS_MAP: Record<PostponeReason, string> = {
   half_day: "نصف يوم تعليمي",
   arbitration: "طلب تحكيم",
   competition: "طلب منافسة رياضية",
+  holiday: "عطلة مدرسية",
   other: "سبب آخر"
 };
+
+const ALGERIAN_HOLIDAYS = [
+  { id: 'autumn', name: 'عطلة الخريف', icon: '🍂', desc: 'عطلة فصل الخريف' },
+  { id: 'winter', name: 'عطلة الشتاء', icon: '❄️', desc: 'عطلة نهاية الفصل الأول' },
+  { id: 'spring', name: 'عطلة الربيع', icon: '🌸', desc: 'عطلة نهاية الفصل الثاني' },
+  { id: 'summer', name: 'عطلة الصيف', icon: '☀️', desc: 'عطلة نهاية السنة الدراسية' }
+] as const;
 
 const GlassPanel = ({ 
   children, 
@@ -569,6 +579,11 @@ export default function App() {
   const [postponeModalRow, setPostponeModalRow] = useState<DailyRecordRow | null>(null);
   const [tempReasonType, setTempReasonType] = useState<PostponeReason>('half_day');
   const [tempOtherText, setTempOtherText] = useState('');
+  const [selectedHoliday, setSelectedHoliday] = useState<string>('عطلة الخريف');
+  const [holidayStartDate, setHolidayStartDate] = useState<string>('');
+  const [holidayEndDate, setHolidayEndDate] = useState<string>('');
+  const [holidayScope, setHolidayScope] = useState<'all' | 'single'>('all');
+  const [revertConfirmSession, setRevertConfirmSession] = useState<PostponedSession | null>(null);
 
   const [themeKey, setThemeKey] = useState<ThemeKey>(() => {
     const saved = localStorage.getItem('app_theme');
@@ -726,7 +741,7 @@ export default function App() {
       .sort((a, b) => getTimeSortValue(a.time) - getTimeSortValue(b.time));
 
     return slotsToday.map((slot): DailyRecordRow & { isIncomplete: boolean } => {
-      const { lesson, isIncomplete } = getLessonForSlot(slot, startDate, dateObj, meetingsState, selectedTerm);
+      const { lesson, isIncomplete } = getLessonForSlot(slot, startDate, dateObj, meetingsState, selectedTerm, postponedSessions);
       const dateFormatted = formatDate(dateObj);
       const slotKey = `${dateFormatted}_${slot.grade}_${slot.section}_${slot.time}`;
       return {
@@ -748,7 +763,7 @@ export default function App() {
         isIncomplete
       };
     });
-  }, [targetDate, semesterStart, meetingsState, selectedTerm, currentFieldName, sessionNotes]);
+  }, [targetDate, semesterStart, meetingsState, selectedTerm, currentFieldName, sessionNotes, postponedSessions]);
 
   // --- Weekly & Today Statistics for Dashboard & Pie Chart ---
   const weekStats = useMemo(() => {
@@ -883,7 +898,8 @@ export default function App() {
           new Date(semesterStart),
           d,
           meetingsState,
-          selectedTerm
+          selectedTerm,
+          postponedSessions
         );
         const postponeEntry = postponedSessions.find(
           p => p.key === key || (p.date === dateFormatted && p.gradeSection.includes(slot.grade) && p.gradeSection.includes(slot.section))
@@ -1038,31 +1054,116 @@ export default function App() {
   const handlePostponeClick = (row: DailyRecordRow) => {
     const key = `${row.date}_${row.gradeSection.replace(' (', '_').replace(')', '')}_${row.time}`;
     if (meetingsState[key] === 'incomplete') {
-      setMeetingsState(prev => {
-        const next = { ...prev };
-        delete next[key];
-        return next;
+      const existing = postponedSessions.find(s => s.key === key);
+      setRevertConfirmSession(existing || {
+        key,
+        date: row.date,
+        gradeSection: row.gradeSection,
+        time: row.time,
+        lessonTopic: row.topic,
+        reason: 'حصة مؤجلة',
+        reasonType: 'other'
       });
-      setPostponedSessions(prev => prev.filter(s => s.key !== key));
-      addNotification('info', 'تم التحديث', `تمت إعادة حصة السنة ${row.gradeSection} كحصة مكتملة.`);
     } else {
       setPostponeModalRow(row);
       setTempReasonType('half_day');
       setTempOtherText('');
+      setSelectedHoliday('عطلة الخريف');
+      setHolidayStartDate(targetDate);
+      const d = new Date(targetDate);
+      d.setDate(d.getDate() + 14);
+      setHolidayEndDate(d.toISOString().split('T')[0]);
+      setHolidayScope('all');
     }
+  };
+
+  const handleConfirmRevertPostpone = () => {
+    if (!revertConfirmSession) return;
+    const key = revertConfirmSession.key;
+    setMeetingsState(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setPostponedSessions(prev => prev.filter(s => s.key !== key));
+    addNotification('info', 'تم التراجع عن التأجيل', `تمت إعادة حصة السنة ${revertConfirmSession.gradeSection} كحصة مكتملة ومبرمجة.`);
+    setRevertConfirmSession(null);
   };
 
   const confirmPostpone = () => {
     if (!postponeModalRow) return;
+
+    if (tempReasonType === 'holiday') {
+      const hName = selectedHoliday || 'عطلة مدرسية';
+      const startStr = holidayStartDate || postponeModalRow.date;
+      const endStr = holidayEndDate || startStr;
+      const startD = new Date(startStr);
+      const endD = new Date(endStr);
+      
+      const newMeetings: Record<string, 'incomplete'> = {};
+      const newPostponed: PostponedSession[] = [];
+
+      const cur = new Date(startD);
+      cur.setHours(0, 0, 0, 0);
+      const limit = new Date(endD);
+      limit.setHours(0, 0, 0, 0);
+
+      while (cur <= limit) {
+        const dIdx = cur.getDay();
+        const curDateFormatted = formatDate(cur);
+        const daySlots = WEEKLY_SCHEDULE.filter(s => {
+          if (holidayScope === 'single') {
+            return s.grade === postponeModalRow.grade && s.section === postponeModalRow.section && s.dayIndex === dIdx;
+          }
+          return s.dayIndex === dIdx;
+        });
+
+        daySlots.forEach(s => {
+          const sKey = `${curDateFormatted}_${s.grade}_${s.section}_${s.time}`;
+          newMeetings[sKey] = 'incomplete';
+          
+          const { lesson } = getLessonForSlot(s, new Date(semesterStart), cur, meetingsState, selectedTerm, postponedSessions);
+          
+          newPostponed.push({
+            key: sKey,
+            date: curDateFormatted,
+            gradeSection: `${s.grade} (${s.section})`,
+            time: s.time,
+            lessonTopic: lesson.topic,
+            reason: `${hName} (من ${startStr} إلى ${endStr})`,
+            reasonType: 'holiday',
+            holidayName: hName,
+            holidayStartDate: startStr,
+            holidayEndDate: endStr
+          });
+        });
+
+        cur.setDate(cur.getDate() + 1);
+      }
+
+      setMeetingsState(prev => ({ ...prev, ...newMeetings }));
+      setPostponedSessions(prev => {
+        const existingKeys = new Set(newPostponed.map(np => np.key));
+        const filtered = prev.filter(p => !existingKeys.has(p.key));
+        return [...filtered, ...newPostponed];
+      });
+
+      addNotification('info', 'تسجيل عطلة رسمية', `تم تسجيل ${hName} وتأجيل الحصص طيلة العطلة دون حذف أي حصة إدماجية.`);
+      setPostponeModalRow(null);
+      return;
+    }
+
     const key = `${postponeModalRow.date}_${postponeModalRow.gradeSection.replace(' (', '_').replace(')', '')}_${postponeModalRow.time}`;
     const reasonValue = tempReasonType === 'other' ? tempOtherText : REASONS_MAP[tempReasonType];
     setMeetingsState(prev => ({ ...prev, [key]: 'incomplete' }));
     setPostponedSessions(prev => [
-      ...prev,
+      ...prev.filter(s => s.key !== key),
       {
         key,
         date: postponeModalRow.date,
         gradeSection: postponeModalRow.gradeSection,
+        time: postponeModalRow.time,
+        lessonTopic: postponeModalRow.topic,
         reason: reasonValue || "غير محدد",
         reasonType: tempReasonType
       }
@@ -1094,7 +1195,7 @@ export default function App() {
           </td>
           <td style="border: 1px solid #000; padding: 4px 8px; font-weight: bold; text-align: right; font-size: 11px; line-height: 1.3;">${r.content}</td>
           <td style="border: 1px solid #000; padding: 4px 6px; font-weight: bold; text-align: center; color: ${r.isIncomplete ? '#b91c1c' : '#000'}; font-size: 11px;">
-            ${r.isIncomplete ? `مؤجلة (${postponedSessions.find(p => p.date === r.date && p.gradeSection === r.gradeSection)?.reason || 'نصف يوم تعليمي'})` : ''}
+            ${r.isIncomplete ? `مؤجلة (${postponedSessions.find(p => p.key === `${r.date}_${r.gradeSection.replace(' (', '_').replace(')', '')}_${r.time}` || (p.date === r.date && p.gradeSection === r.gradeSection))?.reason || 'نصف يوم تعليمي'})` : ''}
           </td>
         </tr>
       `).join('');
@@ -2418,21 +2519,98 @@ export default function App() {
               {postponedSessions.length > 0 ? (
                 <div className="grid grid-cols-1 gap-4">
                   {postponedSessions.map((ps, idx) => (
-                    <GlassPanel key={idx} isLight={isLight} isBlack={isBlack} className="flex flex-col md:flex-row items-center gap-6 border-r-8 border-r-red-500 hover:bg-white/[0.08] transition-all group">
-                      <div className="flex-1 text-right">
-                        <div className="flex items-center gap-3 text-[11px] font-black text-slate-500 mb-2">
-                          <span className={`flex items-center gap-1 px-2.5 py-1 rounded-md ${isLight ? 'bg-slate-100 text-slate-700' : 'bg-white/5 text-slate-300'}`}>
-                            <Calendar size={12} /> {ps.date}
+                    <GlassPanel 
+                      key={idx} 
+                      isLight={isLight} 
+                      isBlack={isBlack} 
+                      className={`p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 transition-all group rounded-3xl ${
+                        ps.reasonType === 'holiday' 
+                          ? 'border-r-8 border-r-purple-500' 
+                          : 'border-r-8 border-r-red-500'
+                      }`}
+                    >
+                      <div className="flex-1 text-right space-y-3">
+                        {/* Meta tags: Date, Grade/Section, Time, Badge */}
+                        <div className="flex flex-wrap items-center gap-2.5 text-xs font-black">
+                          <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border ${
+                            isLight ? 'bg-slate-100 border-slate-200 text-slate-800' : 'bg-white/5 border-white/10 text-slate-200'
+                          }`}>
+                            <Calendar size={13} className="text-blue-500" />
+                            <span>التاريخ: {ps.date}</span>
                           </span>
-                          <span className={`flex items-center gap-1 px-2.5 py-1 rounded-md ${isLight ? 'bg-slate-100 text-slate-700' : 'bg-white/5 text-slate-300'}`}>
-                            <School size={12} /> القسم: {ps.gradeSection}
+
+                          <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border ${
+                            isLight ? 'bg-slate-100 border-slate-200 text-slate-800' : 'bg-white/5 border-white/10 text-slate-200'
+                          }`}>
+                            <School size={13} className="text-emerald-500" />
+                            <span>القسم: {ps.gradeSection}</span>
                           </span>
+
+                          {ps.time && (
+                            <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-dubai font-bold ${
+                              isLight ? 'bg-slate-100 border-slate-200 text-slate-800' : 'bg-white/5 border-white/10 text-slate-200'
+                            }`} dir="ltr" style={{ fontFamily: "'Dubai', sans-serif" }}>
+                              <Clock size={13} className="text-amber-500" />
+                              <span>{formatTimeTo24Hour(ps.time)}</span>
+                            </span>
+                          )}
+
+                          {ps.reasonType === 'holiday' ? (
+                            <span className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-600 dark:text-purple-400 font-black text-[11px]">
+                              <span>🌴 عطلة رسمية (لا تحذف الإدماج)</span>
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 font-black text-[11px]">
+                              <AlertCircle size={13} />
+                              <span>حصة غير مكتملة</span>
+                            </span>
+                          )}
                         </div>
-                        <h4 className={`text-xl font-black group-hover:text-red-500 transition-colors ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                          سبب التأجيل: {ps.reason}
-                        </h4>
+
+                        {/* Lesson Topic (نوع الحصة: الحصة التعليمية كذا كذا) */}
+                        <div className="flex items-center gap-2.5 pt-1">
+                          <div className="p-2 rounded-xl bg-blue-500/10 text-blue-500 shrink-0 border border-blue-500/20">
+                            <BookOpen size={18} />
+                          </div>
+                          <div>
+                            <span className="text-[11px] font-bold text-slate-400 block">نوع الحصة:</span>
+                            <h4 className={`text-base md:text-lg font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                              {ps.lessonTopic || "حصة تعليمية مبرمجة"}
+                            </h4>
+                          </div>
+                        </div>
+
+                        {/* Postponement Reason (سبب التأجيل) */}
+                        <div className="flex items-start gap-2.5 pt-1">
+                          <div className={`p-2 rounded-xl shrink-0 border ${
+                            ps.reasonType === 'holiday' 
+                              ? 'bg-purple-500/10 text-purple-500 border-purple-500/20' 
+                              : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                          }`}>
+                            <AlertCircle size={18} />
+                          </div>
+                          <div>
+                            <span className="text-[11px] font-bold text-slate-400 block">سبب التأجيل:</span>
+                            <p className={`text-sm md:text-base font-black ${
+                              ps.reasonType === 'holiday' ? 'text-purple-600 dark:text-purple-300' : isLight ? 'text-red-700' : 'text-red-400'
+                            }`}>
+                              {ps.reason}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                      <div className="px-6 py-3 bg-red-500/20 text-red-500 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-red-500/30">حصة غير مكتملة</div>
+
+                      {/* Revert Postpone Button (زر للتراجع عن التأجيل) */}
+                      <div className="w-full md:w-auto shrink-0 flex justify-end">
+                        <button
+                          onClick={() => setRevertConfirmSession(ps)}
+                          className="w-full md:w-auto flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-xs md:text-sm shadow-lg shadow-blue-600/25 transition-all active:scale-95 cursor-pointer"
+                          title="التراجع عن التأجيل واستعادة الحصة كحصة مبرمجة ومكتملة"
+                        >
+                          <RotateCcw size={16} />
+                          <span>التراجع عن التأجيل</span>
+                        </button>
+                      </div>
                     </GlassPanel>
                   ))}
                 </div>
@@ -4716,38 +4894,160 @@ export default function App() {
 
       {/* --- Modals: Postpone and Full Record Sheet --- */}
       {postponeModalRow && (
-        <div className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-md flex items-center justify-center p-6 text-right animate-in fade-in duration-300">
-          <div className={`border rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.5)] ${
+        <div className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-md flex items-center justify-center p-4 md:p-6 text-right animate-in fade-in duration-300 overflow-y-auto">
+          <div className={`border rounded-[2.5rem] w-full max-w-xl overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.5)] my-8 ${
             isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-white/10 text-white'
           }`}>
-            <div className={`p-8 border-b flex justify-between items-center ${isLight ? 'border-slate-200 bg-slate-50' : 'border-white/10 bg-white/5'}`}>
+            <div className={`p-6 md:p-8 border-b flex justify-between items-center ${isLight ? 'border-slate-200 bg-slate-50' : 'border-white/10 bg-white/5'}`}>
               <button onClick={() => setPostponeModalRow(null)} className={`p-2 rounded-xl ${isLight ? 'hover:bg-slate-200 text-slate-500' : 'hover:bg-white/10 text-slate-400'}`}>
                 <X size={24} />
               </button>
-              <h3 className="text-xl font-black">تأجيل حصة السنة {postponeModalRow.gradeSection}</h3>
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                  <AlertCircle size={22} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black">تأجيل حصة السنة {postponeModalRow.gradeSection}</h3>
+                  <p className="text-[11px] text-slate-400 font-bold">
+                    {postponeModalRow.date} • {postponeModalRow.topic}
+                  </p>
+                </div>
+              </div>
             </div>
-            <div className="p-10 space-y-8">
+
+            <div className="p-6 md:p-8 space-y-6">
               <p className={`text-sm font-bold ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                 لماذا تعذر إتمام هذه الحصة في وقتها المبرمج؟
               </p>
-              <div className="grid grid-cols-1 gap-4">
+
+              {/* Reasons Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {(Object.keys(REASONS_MAP) as PostponeReason[]).map((r) => (
                   <button 
                     key={r} 
                     onClick={() => setTempReasonType(r)} 
-                    className={`w-full p-5 rounded-2xl text-md font-black border-2 transition-all text-right flex items-center justify-between ${
+                    className={`p-4 rounded-2xl text-xs md:text-sm font-black border-2 transition-all text-right flex items-center justify-between ${
                       tempReasonType === r 
-                        ? 'bg-blue-600 border-blue-400 text-white shadow-xl shadow-blue-600/20' 
+                        ? r === 'holiday' 
+                          ? 'bg-purple-600 border-purple-400 text-white shadow-xl shadow-purple-600/20' 
+                          : 'bg-blue-600 border-blue-400 text-white shadow-xl shadow-blue-600/20' 
                         : isLight
                           ? 'bg-slate-50 border-slate-200 text-slate-800 hover:border-blue-300'
                           : 'bg-white/5 border-white/5 text-white hover:border-white/20'
-                    }`}
+                    } ${r === 'holiday' ? 'sm:col-span-2' : ''}`}
                   >
-                    <span>{REASONS_MAP[r]}</span>
-                    {tempReasonType === r && <CheckCircle size={24} />}
+                    <div className="flex items-center gap-2.5">
+                      {r === 'holiday' && <Palmtree size={18} className="text-amber-300" />}
+                      <span>{REASONS_MAP[r]}</span>
+                      {r === 'holiday' && (
+                        <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-bold">
+                          لا تحذف الإدماج
+                        </span>
+                      )}
+                    </div>
+                    {tempReasonType === r && <CheckCircle size={20} />}
                   </button>
                 ))}
               </div>
+
+              {/* Holiday specific configuration (العطلة المدرسية) */}
+              {tempReasonType === 'holiday' && (
+                <div className="space-y-5 p-5 rounded-3xl border border-purple-500/30 bg-purple-500/5 animate-in slide-in-from-top-3 duration-300">
+                  <div className="text-right">
+                    <label className={`block text-xs font-black mb-2.5 ${isLight ? 'text-slate-800' : 'text-white'}`}>
+                      1. حدد العطلة الرسمية:
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {ALGERIAN_HOLIDAYS.map((h) => (
+                        <button
+                          key={h.id}
+                          type="button"
+                          onClick={() => setSelectedHoliday(h.name)}
+                          className={`p-3 rounded-2xl text-center border transition-all ${
+                            selectedHoliday === h.name
+                              ? 'bg-purple-600 text-white border-purple-400 shadow-md shadow-purple-600/30 font-black'
+                              : isLight
+                                ? 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50 font-bold'
+                                : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 font-bold'
+                          }`}
+                        >
+                          <div className="text-xl mb-1">{h.icon}</div>
+                          <div className="text-xs">{h.name}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Holiday Dates: Start and End Date */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-right">
+                    <div className="space-y-1.5">
+                      <label className={`block text-xs font-black ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                        تاريخ بداية العطلة:
+                      </label>
+                      <input
+                        type="date"
+                        value={holidayStartDate}
+                        onChange={(e) => setHolidayStartDate(e.target.value)}
+                        className={`w-full p-3 rounded-xl border text-xs font-black outline-none ${
+                          isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-black/40 border-white/10 text-white'
+                        }`}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className={`block text-xs font-black ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                        تاريخ نهاية العطلة:
+                      </label>
+                      <input
+                        type="date"
+                        value={holidayEndDate}
+                        onChange={(e) => setHolidayEndDate(e.target.value)}
+                        className={`w-full p-3 rounded-xl border text-xs font-black outline-none ${
+                          isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-black/40 border-white/10 text-white'
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Holiday Scope */}
+                  <div className="space-y-2 text-right">
+                    <label className={`block text-xs font-black ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                      نطاق تطبيق العطلة:
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setHolidayScope('all')}
+                        className={`p-3 rounded-xl text-xs font-black text-right border transition-all ${
+                          holidayScope === 'all'
+                            ? 'bg-purple-600 text-white border-purple-400'
+                            : isLight ? 'bg-white border-slate-200 text-slate-700' : 'bg-white/5 border-white/10 text-slate-300'
+                        }`}
+                      >
+                        ✓ جميع حصص المؤسسة خلال العطلة
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setHolidayScope('single')}
+                        className={`p-3 rounded-xl text-xs font-black text-right border transition-all ${
+                          holidayScope === 'single'
+                            ? 'bg-purple-600 text-white border-purple-400'
+                            : isLight ? 'bg-white border-slate-200 text-slate-700' : 'bg-white/5 border-white/10 text-slate-300'
+                        }`}
+                      >
+                        ✓ حصص السنة {postponeModalRow.gradeSection} فقط
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Integration Lesson Guarantee Note */}
+                  <div className={`p-3.5 rounded-2xl border text-xs font-bold leading-relaxed ${
+                    isLight ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
+                  }`}>
+                    💡 <strong>خاصية العطل المدرسية:</strong> عند اختيار العطلة، تؤجل الحصص فقط حتى انتهاء فترة العطلة، <strong>ولا يتم حذف الحصة الإدماجية الأولى أو الثانية</strong> كباقي الأسباب العادية.
+                  </div>
+                </div>
+              )}
+
               {tempReasonType === 'other' && (
                 <div className="mt-4 animate-in slide-in-from-top-4 duration-300">
                    <ModernField 
@@ -4761,15 +5061,107 @@ export default function App() {
                    />
                 </div>
               )}
-              <div className="flex gap-4 mt-10">
-                 <button onClick={confirmPostpone} className="flex-1 py-5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-md uppercase shadow-xl shadow-blue-600/30 transition-transform active:scale-95">
-                   تأكيد التأجيل
+
+              <div className="flex gap-4 pt-4">
+                 <button 
+                   onClick={confirmPostpone} 
+                   className="flex-1 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl font-black text-sm uppercase shadow-xl shadow-blue-600/30 transition-transform active:scale-95 cursor-pointer"
+                 >
+                   {tempReasonType === 'holiday' ? `تأكيد تسجيل ${selectedHoliday}` : 'تأكيد التأجيل'}
                  </button>
-                 <button onClick={() => setPostponeModalRow(null)} className={`flex-1 py-5 rounded-2xl font-black text-md uppercase transition-colors ${
-                   isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-white/5 hover:bg-white/10 text-white'
-                 }`}>
+                 <button 
+                   onClick={() => setPostponeModalRow(null)} 
+                   className={`flex-1 py-4 rounded-2xl font-black text-sm uppercase transition-colors cursor-pointer ${
+                     isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-white/5 hover:bg-white/10 text-white'
+                   }`}
+                 >
                    إلغاء
                  </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- Confirmation Modal: Revert Postponement (نافذة تأكيد التراجع عن التأجيل نعم / لا) --- */}
+      {revertConfirmSession && (
+        <div className="fixed inset-0 z-[280] bg-black/75 backdrop-blur-md flex items-center justify-center p-4 md:p-6 text-right animate-in fade-in duration-200 no-print">
+          <div className={`border rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : isBlack ? 'bg-[#0e0e11] border-zinc-800 text-white' : 'bg-slate-900 border-white/10 text-white'
+          }`}>
+            {/* Header */}
+            <div className={`p-6 md:p-8 border-b flex justify-between items-center ${
+              isLight ? 'border-slate-200 bg-slate-50' : isBlack ? 'border-zinc-800 bg-zinc-900/60' : 'border-white/10 bg-white/5'
+            }`}>
+              <button 
+                onClick={() => setRevertConfirmSession(null)} 
+                className={`p-2.5 rounded-xl transition-colors ${isLight ? 'hover:bg-slate-200 text-slate-500' : 'hover:bg-white/10 text-slate-400'}`}
+              >
+                <X size={22} />
+              </button>
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                  <RotateCcw size={22} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black">التراجع عن تأجيل الحصة</h3>
+                  <p className="text-[11px] text-slate-400 font-bold">تأكيد استعادة الحصة كحصة مبرمجة ومكتملة</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 md:p-8 space-y-6">
+              <div className={`p-5 rounded-2xl border text-sm font-bold leading-relaxed ${
+                isLight ? 'bg-amber-50/70 border-amber-200 text-amber-900' : 'bg-amber-500/10 border-amber-500/20 text-amber-300'
+              }`}>
+                <p className="text-base font-black mb-1">
+                  هل تريد التأكيد أنك سوف تتراجع عن هذا التأجيل؟
+                </p>
+                <p className="text-xs opacity-90">
+                  سيتم إلغاء حالة التأجيل وإعادة الحصة كحصة منجزة ومكتملة في الدفتر اليومي والجدول الأسبوعي.
+                </p>
+              </div>
+
+              {/* Session summary */}
+              <div className={`p-4 rounded-2xl border space-y-2 text-xs font-bold ${
+                isLight ? 'bg-slate-50 border-slate-200 text-slate-800' : 'bg-white/5 border-white/10 text-slate-300'
+              }`}>
+                <div className="flex justify-between items-center py-1 border-b border-black/5 dark:border-white/5">
+                  <span className="text-slate-400 font-medium">تاريخ الحصة:</span>
+                  <span className="font-black text-blue-500">{revertConfirmSession.date}</span>
+                </div>
+                <div className="flex justify-between items-center py-1 border-b border-black/5 dark:border-white/5">
+                  <span className="text-slate-400 font-medium">القسم / الفوج:</span>
+                  <span className="font-black">{revertConfirmSession.gradeSection}</span>
+                </div>
+                <div className="flex justify-between items-center py-1 border-b border-black/5 dark:border-white/5">
+                  <span className="text-slate-400 font-medium">نوع الحصة:</span>
+                  <span className="font-black text-emerald-500">{revertConfirmSession.lessonTopic || 'حصة تعليمية'}</span>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-400 font-medium">سبب التأجيل المسجل:</span>
+                  <span className="font-black text-rose-500">{revertConfirmSession.reason}</span>
+                </div>
+              </div>
+
+              {/* Action Buttons: نعم / لا */}
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={handleConfirmRevertPostpone}
+                  className="flex-1 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-sm uppercase shadow-xl shadow-emerald-600/30 transition-transform active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Check size={18} />
+                  <span>نعم، تراجع عن التأجيل</span>
+                </button>
+                <button
+                  onClick={() => setRevertConfirmSession(null)}
+                  className={`flex-1 py-4 rounded-2xl font-black text-sm uppercase transition-colors cursor-pointer ${
+                    isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-white/5 hover:bg-white/10 text-white'
+                  }`}
+                >
+                  لا، إلغاء
+                </button>
               </div>
             </div>
           </div>

@@ -42,7 +42,7 @@ export interface TeacherInfo {
   manager: string;
 }
 
-export type PostponeReason = 'half_day' | 'arbitration' | 'competition' | 'other';
+export type PostponeReason = 'half_day' | 'arbitration' | 'competition' | 'holiday' | 'other';
 
 export type TermKey = '1' | '2' | '3';
 
@@ -58,8 +58,13 @@ export interface PostponedSession {
   key: string; // date_grade_section_time
   date: string;
   gradeSection: string;
+  time?: string;
+  lessonTopic?: string; // نوع الحصة (مثل: حصة تعليمية 01، تقويم تشخيصي، إلخ)
   reason: string;
   reasonType: PostponeReason;
+  holidayName?: string; // عطلة الخريف | عطلة الشتاء | عطلة الربيع | عطلة الصيف
+  holidayStartDate?: string;
+  holidayEndDate?: string;
 }
 
 export interface SessionNote {
